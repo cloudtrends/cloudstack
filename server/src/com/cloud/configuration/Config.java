@@ -980,7 +980,7 @@ public enum Config {
             String.class,
             "vm.allocation.algorithm",
             "random",
-            "'random', 'firstfit', 'userdispersing', 'userconcentratedpod_random', 'userconcentratedpod_firstfit' : Order in which hosts within a cluster will be considered for VM/volume allocation.",
+            "'random', 'firstfit', 'userdispersing', 'userconcentratedpod_random', 'userconcentratedpod_firstfit', 'firstfitleastconsumed' : Order in which hosts within a cluster will be considered for VM/volume allocation.",
             null),
     VmDeploymentPlanner(
             "Advanced",
@@ -1379,14 +1379,6 @@ public enum Config {
             "false",
             "Set it to true to enable SAML SSO plugin",
             null),
-    SAMLUserAccountName(
-            "Advanced",
-            ManagementServer.class,
-            String.class,
-            "saml2.default.accountname",
-            "admin",
-            "The name of the default account to use when creating users from SAML SSO",
-            null),
     SAMLUserDomain(
             "Advanced",
             ManagementServer.class,
@@ -1600,13 +1592,22 @@ public enum Config {
             "Percentage (as a value between 0 and 1) of connected agents after which agent load balancing will start happening",
             null),
 
-    JavaScriptDefaultContentType(
+    JSONDefaultContentType(
             "Advanced",
             ManagementServer.class,
             String.class,
             "json.content.type",
-            "text/javascript",
-            "Http response content type for .js files (default is text/javascript)",
+            "application/json; charset=UTF-8",
+            "Http response content type for JSON",
+            null),
+
+    EnableSecureSessionCookie(
+            "Advanced",
+            ManagementServer.class,
+            Boolean.class,
+            "enable.secure.session.cookie",
+            "false",
+            "Session cookie's secure flag is enabled if true. Use this only when using HTTPS",
             null),
 
     DefaultMaxDomainUserVms("Domain Defaults", ManagementServer.class, Long.class, "max.domain.user.vms", "40", "The default maximum number of user VMs that can be deployed for a domain", null),

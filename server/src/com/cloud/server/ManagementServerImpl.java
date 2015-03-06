@@ -39,6 +39,7 @@ import javax.crypto.spec.SecretKeySpec;
 import javax.inject.Inject;
 import javax.naming.ConfigurationException;
 
+import org.apache.cloudstack.api.command.admin.usage.RemoveRawUsageRecordsCmd;
 import org.apache.cloudstack.api.command.user.snapshot.UpdateSnapshotPolicyCmd;
 import org.apache.commons.codec.binary.Base64;
 import org.apache.log4j.Logger;
@@ -1709,9 +1710,18 @@ public class ManagementServerImpl extends ManagerBase implements ManagementServe
             List<ConfigurationVO> configVOList = new ArrayList<ConfigurationVO>();
             for (ConfigurationVO param : result.first()) {
                 ConfigurationVO configVo = _configDao.findByName(param.getName());
-                configVo.setValue(_configDepot.get(param.getName()).valueIn(id).toString());
-                configVOList.add(configVo);
-    }
+                if (configVo != null) {
+                    ConfigKey<?> key = _configDepot.get(param.getName());
+                    if (key != null) {
+                        configVo.setValue(key.valueIn(id).toString());
+                        configVOList.add(configVo);
+                    } else {
+                        s_logger.warn("ConfigDepot could not find parameter " + param.getName() + " for scope " + scope);
+                    }
+                } else {
+                    s_logger.warn("Configuration item  " + param.getName() + " not found in " + scope);
+                }
+            }
 
             return new Pair<List<? extends Configuration>, Integer>(configVOList, configVOList.size());
         }
@@ -2173,7 +2183,7 @@ public class ManagementServerImpl extends ManagerBase implements ManagementServe
     }
 
     private ConsoleProxyVO startConsoleProxy(long instanceId) {
-        return _consoleProxyMgr.startProxy(instanceId);
+        return _consoleProxyMgr.startProxy(instanceId, true);
     }
 
     private ConsoleProxyVO stopConsoleProxy(VMInstanceVO systemVm, boolean isForced) throws ResourceUnavailableException, OperationTimedoutException, ConcurrentOperationException {
@@ -2380,11 +2390,16 @@ public class ManagementServerImpl extends ManagerBase implements ManagementServe
         Long zoneId = cmd.getZoneId();
         Long podId = cmd.getPodId();
         Long clusterId = cmd.getClusterId();
+        Boolean fetchLatest = cmd.getFetchLatest();
 
         if (clusterId != null) {
             throw new InvalidParameterValueException("Currently clusterId param is not suppoerted");
         }
         zoneId = _accountMgr.checkAccessAndSpecifyAuthority(CallContext.current().getCallingAccount(), zoneId);
+
+        if (fetchLatest != null && fetchLatest) {
+            _alertMgr.recalculateCapacity();
+        }
         List<SummedCapacity> summedCapacities = new ArrayList<SummedCapacity>();
 
         if (zoneId == null && podId == null) {// Group by Zone, capacity type
@@ -2649,6 +2664,7 @@ public class ManagementServerImpl extends ManagerBase implements ManagementServe
         cmdList.add(DeleteTrafficTypeCmd.class);
         cmdList.add(GenerateUsageRecordsCmd.class);
         cmdList.add(GetUsageRecordsCmd.class);
+        cmdList.add(RemoveRawUsageRecordsCmd.class);
         cmdList.add(ListTrafficMonitorsCmd.class);
         cmdList.add(ListTrafficTypeImplementorsCmd.class);
         cmdList.add(ListTrafficTypesCmd.class);

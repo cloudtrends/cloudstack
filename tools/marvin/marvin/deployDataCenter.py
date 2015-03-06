@@ -229,8 +229,8 @@ class DeployDataCenters(object):
     def createPrimaryStorages(self,
                               primaryStorages,
                               zoneId,
-                              podId,
-                              clusterId):
+                              podId=None,
+                              clusterId=None):
         try:
             if primaryStorages is None:
                 return
@@ -240,11 +240,17 @@ class DeployDataCenters(object):
                     for key, value in vars(primary.details).iteritems():
                         primarycmd.details.append({ key: value})
                 primarycmd.name = primary.name
-                primarycmd.podid = podId
+
                 primarycmd.tags = primary.tags
                 primarycmd.url = primary.url
+                if primary.scope == 'zone':
+                    primarycmd.scope = primary.scope
+                    primarycmd.hypervisor = primary.hypervisor
+                else:
+                    primarycmd.podid = podId
+                    primarycmd.clusterid = clusterId
                 primarycmd.zoneid = zoneId
-                primarycmd.clusterid = clusterId
+
                 ret = self.__apiClient.createStoragePool(primarycmd)
                 if ret.id:
                     self.__tcRunLogger.debug(
@@ -779,6 +785,11 @@ class DeployDataCenters(object):
                 '''Note: Swift needs cache storage first'''
                 self.createCacheStorages(zone.cacheStorages, zoneId)
                 self.createSecondaryStorages(zone.secondaryStorages, zoneId)
+                #add zone wide primary storages if any
+                if zone.primaryStorages:
+                    self.createPrimaryStorages(zone.primaryStorages,
+                                               zoneId,
+                                               )
                 enabled = getattr(zone, 'enabled', 'True')
                 if enabled == 'True' or enabled is None:
                     self.enableZone(zoneId, "Enabled")

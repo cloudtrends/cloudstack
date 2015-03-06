@@ -16,52 +16,6 @@
 // under the License.
 package com.cloud.user;
 
-import java.net.URLEncoder;
-import java.net.InetAddress;
-import java.security.NoSuchAlgorithmException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
-
-import javax.crypto.KeyGenerator;
-import javax.crypto.Mac;
-import javax.crypto.SecretKey;
-import javax.crypto.spec.SecretKeySpec;
-import javax.ejb.Local;
-import javax.inject.Inject;
-import javax.naming.ConfigurationException;
-
-import org.apache.commons.codec.binary.Base64;
-import org.apache.commons.lang.StringUtils;
-import org.apache.log4j.Logger;
-
-import org.apache.cloudstack.acl.ControlledEntity;
-import org.apache.cloudstack.acl.QuerySelector;
-import org.apache.cloudstack.acl.RoleType;
-import org.apache.cloudstack.acl.SecurityChecker;
-import org.apache.cloudstack.acl.SecurityChecker.AccessType;
-import org.apache.cloudstack.affinity.AffinityGroup;
-import org.apache.cloudstack.affinity.dao.AffinityGroupDao;
-import org.apache.cloudstack.api.command.admin.account.UpdateAccountCmd;
-import org.apache.cloudstack.api.command.admin.user.DeleteUserCmd;
-import org.apache.cloudstack.api.command.admin.user.RegisterCmd;
-import org.apache.cloudstack.api.command.admin.user.UpdateUserCmd;
-import org.apache.cloudstack.context.CallContext;
-import org.apache.cloudstack.engine.orchestration.service.NetworkOrchestrationService;
-import org.apache.cloudstack.framework.config.dao.ConfigurationDao;
-import org.apache.cloudstack.framework.messagebus.MessageBus;
-import org.apache.cloudstack.framework.messagebus.PublishScope;
-import org.apache.cloudstack.managed.context.ManagedContextRunnable;
-import org.apache.cloudstack.region.gslb.GlobalLoadBalancerRuleDao;
-
 import com.cloud.api.ApiDBUtils;
 import com.cloud.api.query.vo.ControlledViewEntity;
 import com.cloud.configuration.Config;
@@ -163,6 +117,54 @@ import com.cloud.vm.VirtualMachineManager;
 import com.cloud.vm.dao.InstanceGroupDao;
 import com.cloud.vm.dao.UserVmDao;
 import com.cloud.vm.dao.VMInstanceDao;
+import com.cloud.vm.snapshot.VMSnapshot;
+import com.cloud.vm.snapshot.VMSnapshotManager;
+import com.cloud.vm.snapshot.VMSnapshotVO;
+import com.cloud.vm.snapshot.dao.VMSnapshotDao;
+import org.apache.cloudstack.acl.ControlledEntity;
+import org.apache.cloudstack.acl.QuerySelector;
+import org.apache.cloudstack.acl.RoleType;
+import org.apache.cloudstack.acl.SecurityChecker;
+import org.apache.cloudstack.acl.SecurityChecker.AccessType;
+import org.apache.cloudstack.affinity.AffinityGroup;
+import org.apache.cloudstack.affinity.dao.AffinityGroupDao;
+import org.apache.cloudstack.api.command.admin.account.UpdateAccountCmd;
+import org.apache.cloudstack.api.command.admin.user.DeleteUserCmd;
+import org.apache.cloudstack.api.command.admin.user.RegisterCmd;
+import org.apache.cloudstack.api.command.admin.user.UpdateUserCmd;
+import org.apache.cloudstack.context.CallContext;
+import org.apache.cloudstack.engine.orchestration.service.NetworkOrchestrationService;
+import org.apache.cloudstack.framework.config.dao.ConfigurationDao;
+import org.apache.cloudstack.framework.messagebus.MessageBus;
+import org.apache.cloudstack.framework.messagebus.PublishScope;
+import org.apache.cloudstack.managed.context.ManagedContextRunnable;
+import org.apache.cloudstack.region.gslb.GlobalLoadBalancerRuleDao;
+import org.apache.cloudstack.utils.baremetal.BaremetalUtils;
+import org.apache.commons.codec.binary.Base64;
+import org.apache.commons.lang.StringUtils;
+import org.apache.log4j.Logger;
+
+import javax.crypto.KeyGenerator;
+import javax.crypto.Mac;
+import javax.crypto.SecretKey;
+import javax.crypto.spec.SecretKeySpec;
+import javax.ejb.Local;
+import javax.inject.Inject;
+import javax.naming.ConfigurationException;
+import java.net.InetAddress;
+import java.net.URLEncoder;
+import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 @Local(value = {AccountManager.class, AccountService.class})
 public class AccountManagerImpl extends ManagerBase implements AccountManager, Manager {
@@ -202,6 +204,10 @@ public class AccountManagerImpl extends ManagerBase implements AccountManager, M
     private NetworkOrchestrationService _networkMgr;
     @Inject
     private SnapshotManager _snapMgr;
+    @Inject
+    private VMSnapshotManager _vmSnapshotMgr;
+    @Inject
+    private VMSnapshotDao _vmSnapshotDao;
     @Inject
     private UserVmManager _vmMgr;
     @Inject
@@ -732,6 +738,16 @@ public class AccountManagerImpl extends ManagerBase implements AccountManager, M
                 accountCleanupNeeded = true;
             }
 
+            // Destroy VM Snapshots
+            List<VMSnapshotVO> vmSnapshots = _vmSnapshotDao.listByAccountId(Long.valueOf(accountId));
+            for (VMSnapshot vmSnapshot : vmSnapshots) {
+                try {
+                    _vmSnapshotMgr.deleteVMSnapshot(vmSnapshot.getId());
+                } catch (Exception e) {
+                    s_logger.debug("Failed to cleanup vm snapshot " + vmSnapshot.getId() + " due to " + e.toString());
+                }
+            }
+
             // Destroy the account's VMs
             List<UserVmVO> vms = _userVmDao.listByAccountId(accountId);
             if (s_logger.isDebugEnabled()) {
@@ -1017,7 +1033,7 @@ public class AccountManagerImpl extends ManagerBase implements AccountManager, M
             throw new InvalidParameterValueException("The user " + userName + " already exists in domain " + domainId);
         }
 
-        if (networkDomain != null) {
+        if (networkDomain != null && networkDomain.length() > 0) {
             if (!NetUtils.verifyDomainName(networkDomain)) {
                 throw new InvalidParameterValueException(
                         "Invalid network domain. Total length shouldn't exceed 190 chars. Each domain label must be between 1 and 63 characters long, can contain ASCII letters 'a' through 'z', the digits '0' through '9', "
@@ -1171,6 +1187,9 @@ public class AccountManagerImpl extends ManagerBase implements AccountManager, M
         }
 
         if (password != null) {
+            if (password.isEmpty()) {
+                throw new InvalidParameterValueException("Password cannot be empty");
+            }
             String encodedPassword = null;
             for (Iterator<UserAuthenticator> en = _userPasswordEncoders.iterator(); en.hasNext();) {
                 UserAuthenticator authenticator = en.next();
@@ -1979,7 +1998,7 @@ public class AccountManagerImpl extends ManagerBase implements AccountManager, M
     @Override
     public UserAccount authenticateUser(String username, String password, Long domainId, InetAddress loginIpAddress, Map<String, Object[]> requestParameters) {
         UserAccount user = null;
-        if (password != null) {
+        if (password != null && !password.isEmpty()) {
             user = getUserAccount(username, password, domainId, requestParameters);
         } else {
             String key = _configDao.getValue("security.singlesignon.key");
@@ -2079,6 +2098,11 @@ public class AccountManagerImpl extends ManagerBase implements AccountManager, M
             // don't allow to authenticate system user
             if (user.getId() == User.UID_SYSTEM) {
                 s_logger.error("Failed to authenticate user: " + username + " in domain " + domainId);
+                return null;
+            }
+            // don't allow baremetal system user
+            if (BaremetalUtils.BAREMETAL_SYSTEM_ACCOUNT_NAME.equals(user.getUsername())) {
+                s_logger.error("Won't authenticate user: " + username + " in domain " + domainId);
                 return null;
             }
 
@@ -2194,6 +2218,10 @@ public class AccountManagerImpl extends ManagerBase implements AccountManager, M
         if (user.getId() == User.UID_SYSTEM) {
             throw new PermissionDeniedException("user id : " + user.getId() + " is system account, update is not allowed");
         }
+        // don't allow baremetal system user
+        if (BaremetalUtils.BAREMETAL_SYSTEM_ACCOUNT_NAME.equals(user.getUsername())) {
+            throw new PermissionDeniedException("user id : " + user.getId() + " is system account, update is not allowed");
+        }
 
         // generate both an api key and a secret key, update the user table with the keys, return the keys to the user
         final String[] keys = new String[2];
@@ -2205,6 +2233,24 @@ public class AccountManagerImpl extends ManagerBase implements AccountManager, M
             }
         });
 
+        return keys;
+    }
+
+    @Override
+    @DB
+    @ActionEvent(eventType = EventTypes.EVENT_REGISTER_FOR_SECRET_API_KEY, eventDescription = "register for the developer API keys")
+    public String[] createApiKeyAndSecretKey(final long userId) {
+        User user = getUserIncludingRemoved(userId);
+        if (user == null) {
+            throw new InvalidParameterValueException("Unable to find user by id");
+        }
+        final String[] keys = new String[2];
+        Transaction.execute(new TransactionCallbackNoReturn() {
+            public void doInTransactionWithoutResult(TransactionStatus status) {
+                keys[0] = AccountManagerImpl.this.createUserApiKey(userId);
+                keys[1] = AccountManagerImpl.this.createUserSecretKey(userId);
+            }
+        });
         return keys;
     }
 

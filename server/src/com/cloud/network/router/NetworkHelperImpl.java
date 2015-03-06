@@ -28,6 +28,8 @@ import javax.annotation.PostConstruct;
 import javax.ejb.Local;
 import javax.inject.Inject;
 
+import com.cloud.user.dao.UserDao;
+import org.apache.cloudstack.context.CallContext;
 import org.apache.cloudstack.engine.orchestration.service.NetworkOrchestrationService;
 import org.apache.cloudstack.framework.config.ConfigKey;
 import org.apache.log4j.Logger;
@@ -66,7 +68,6 @@ import com.cloud.network.Network;
 import com.cloud.network.NetworkModel;
 import com.cloud.network.Networks.BroadcastDomainType;
 import com.cloud.network.Networks.IsolationType;
-import com.cloud.network.VirtualNetworkApplianceService;
 import com.cloud.network.addr.PublicIp;
 import com.cloud.network.dao.IPAddressDao;
 import com.cloud.network.dao.NetworkDao;
@@ -147,6 +148,8 @@ public class NetworkHelperImpl implements NetworkHelper {
     private RouterControlHelper _routerControlHelper;
     @Inject
     protected NetworkOrchestrationService _networkMgr;
+    @Inject
+    private UserDao _userDao;
 
     protected final Map<HypervisorType, ConfigKey<String>> hypervisorsMap = new HashMap<>();
 
@@ -163,7 +166,7 @@ public class NetworkHelperImpl implements NetworkHelper {
     public boolean sendCommandsToRouter(final VirtualRouter router, final Commands cmds) throws AgentUnavailableException, ResourceUnavailableException {
         if (!checkRouterVersion(router)) {
             s_logger.debug("Router requires upgrade. Unable to send command to router:" + router.getId() + ", router template version : " + router.getTemplateVersion()
-                    + ", minimal required version : " + VirtualNetworkApplianceService.MinVRVersion);
+                    + ", minimal required version : " + NetworkOrchestrationService.MinVRVersion.valueIn(router.getDataCenterId()));
             throw new ResourceUnavailableException("Unable to send command. Router requires upgrade", VirtualRouter.class, router.getId());
         }
         Answer[] answers = null;
@@ -284,8 +287,9 @@ public class NetworkHelperImpl implements NetworkHelper {
         if (router.getTemplateVersion() == null) {
             return false;
         }
+        long dcid = router.getDataCenterId();
         final String trimmedVersion = Version.trimRouterVersion(router.getTemplateVersion());
-        return Version.compare(trimmedVersion, VirtualNetworkApplianceService.MinVRVersion) >= 0;
+        return Version.compare(trimmedVersion, NetworkOrchestrationService.MinVRVersion.valueIn(dcid)) >= 0;
     }
 
     protected DomainRouterVO start(DomainRouterVO router, final User user, final Account caller, final Map<Param, Object> params, final DeploymentPlan planToDeploy)
@@ -513,9 +517,14 @@ public class NetworkHelperImpl implements NetworkHelper {
                 // VPC because it is not a VPC offering.
                 Long vpcId = routerDeploymentDefinition.getVpc() != null ? routerDeploymentDefinition.getVpc().getId() : null;
 
+                long userId = CallContext.current().getCallingUserId();
+                if (CallContext.current().getCallingAccount().getId() != owner.getId()) {
+                    userId =  _userDao.listByAccount(owner.getAccountId()).get(0).getId();
+                }
+
                 router = new DomainRouterVO(id, routerOffering.getId(), routerDeploymentDefinition.getVirtualProvider().getId(), VirtualMachineName.getRouterName(id,
                         s_vmInstanceName), template.getId(), template.getHypervisorType(), template.getGuestOSId(), owner.getDomainId(), owner.getId(),
-                        routerDeploymentDefinition.isRedundant(), 0, false, RedundantState.UNKNOWN, offerHA, false, vpcId);
+                        userId, routerDeploymentDefinition.isRedundant(), 0, false, RedundantState.UNKNOWN, offerHA, false, vpcId);
 
                 router.setDynamicallyScalable(template.isDynamicallyScalable());
                 router.setRole(Role.VIRTUAL_ROUTER);

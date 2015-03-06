@@ -571,9 +571,17 @@ public abstract class CitrixResourceBase implements ServerResource, HypervisorRe
     @Override
     public ExecutionResult createFileInVR(String routerIp, String path, String filename, String content) {
         Connection conn = getConnection();
-        String rc = callHostPlugin(conn, "vmops", "createFileInDomr", "domrip", routerIp, "filepath", path + filename, "filecontents", content);
-        s_logger.debug ("VR Config file " + filename + " got created in VR with ip " + routerIp + " with content \n" + content);
-        // Fail case would be start with "fail#"
+        String hostPath = "/tmp/";
+
+        s_logger.debug("Copying VR with ip " + routerIp +" config file into host "+ _host.ip );
+        try {
+            SshHelper.scpTo(_host.ip, 22, _username, null, _password.peek(), hostPath, content.getBytes(), filename, null);
+        } catch (Exception e) {
+            s_logger.warn("scp VR config file into host " + _host.ip + " failed with exception " + e.getMessage().toString());
+        }
+
+        String rc = callHostPlugin(conn, "vmops", "createFileInDomr", "domrip", routerIp, "srcfilepath", hostPath + filename, "dstfilepath", path);
+        s_logger.debug ("VR Config file " + filename + " got created in VR, ip " + routerIp + " with content \n" + content);
         return new ExecutionResult(rc.startsWith("succ#"), rc.substring(5));
     }
 
@@ -1325,6 +1333,8 @@ public abstract class CitrixResourceBase implements ServerResource, HypervisorRe
         vmr.actionsAfterCrash = Types.OnCrashBehaviour.DESTROY;
         vmr.actionsAfterShutdown = Types.OnNormalExit.DESTROY;
         vmr.otherConfig.put("vm_uuid", vmSpec.getUuid());
+        vmr.VCPUsMax = (long) vmSpec.getCpus(); // FIX ME: In case of dynamic scaling this VCPU max should be the minumum of
+                                                // recommended value for that template and capacity remaining on host
 
         if (isDmcEnabled(conn, host) && vmSpec.isEnableDynamicallyScaleVm()) {
             //scaling is allowed
@@ -1333,13 +1343,10 @@ public abstract class CitrixResourceBase implements ServerResource, HypervisorRe
             vmr.memoryDynamicMin = vmSpec.getMinRam();
             vmr.memoryDynamicMax = vmSpec.getMaxRam();
             if (guestOsTypeName.toLowerCase().contains("windows")) {
-                vmr.VCPUsMax = (long)vmSpec.getCpus();
+                vmr.VCPUsMax = (long) vmSpec.getCpus();
             } else {
-                // XenServer has a documented limit of 16 vcpus per vm
-                vmr.VCPUsMax = 2L * vmSpec.getCpus();
-                if (vmr.VCPUsMax > 16)
-                {
-                    vmr.VCPUsMax = 16L;
+                if (vmSpec.getVcpuMaxLimit() != null) {
+                    vmr.VCPUsMax = (long) vmSpec.getVcpuMaxLimit();
                 }
             }
         } else {
@@ -1347,15 +1354,15 @@ public abstract class CitrixResourceBase implements ServerResource, HypervisorRe
             if (vmSpec.isEnableDynamicallyScaleVm() && !isDmcEnabled(conn, host)) {
                 s_logger.warn("Host " + host.getHostname(conn) + " does not support dynamic scaling, so the vm " + vmSpec.getName() + " is not dynamically scalable");
             }
-            vmr.memoryStaticMin = vmSpec.getMaxRam();
+            vmr.memoryStaticMin = vmSpec.getMinRam();
             vmr.memoryStaticMax = vmSpec.getMaxRam();
-            vmr.memoryDynamicMin = vmSpec.getMaxRam();;
+            vmr.memoryDynamicMin = vmSpec.getMinRam();;
             vmr.memoryDynamicMax = vmSpec.getMaxRam();
-            vmr.VCPUsMax = (long)vmSpec.getCpus();
+
+            vmr.VCPUsMax = (long) vmSpec.getCpus();
         }
 
-
-        vmr.VCPUsAtStartup = (long)vmSpec.getCpus();
+        vmr.VCPUsAtStartup = (long) vmSpec.getCpus();
         vmr.consoles.clear();
 
         VM vm = VM.create(conn, vmr);
@@ -2869,6 +2876,7 @@ public abstract class CitrixResourceBase implements ServerResource, HypervisorRe
         if (sr == null) {
             return;
         }
+
         if (s_logger.isDebugEnabled()) {
             s_logger.debug(logX(sr, "Removing SR"));
         }
@@ -2876,34 +2884,49 @@ public abstract class CitrixResourceBase implements ServerResource, HypervisorRe
         for (int i = 0; i < 2; i++) {
             try {
                 Set<VDI> vdis = sr.getVDIs(conn);
+
                 for (VDI vdi : vdis) {
+                    Set<VBD> vbds = vdi.getVBDs(conn);
+
+                    for (VBD vbd : vbds) {
+                        vbd.unplug(conn);
+                    }
+
                     vdi.forget(conn);
                 }
+
                 Set<PBD> pbds = sr.getPBDs(conn);
+
                 for (PBD pbd : pbds) {
                     if (s_logger.isDebugEnabled()) {
                         s_logger.debug(logX(pbd, "Unplugging pbd"));
                     }
-                    if (pbd.getCurrentlyAttached(conn)) {
-                        pbd.unplug(conn);
-                    }
+
+//                    if (pbd.getCurrentlyAttached(conn)) {
+                    pbd.unplug(conn);
+//                    }
+
                     pbd.destroy(conn);
                 }
 
                 pbds = sr.getPBDs(conn);
+
                 if (pbds.size() == 0) {
                     if (s_logger.isDebugEnabled()) {
                         s_logger.debug(logX(sr, "Forgetting"));
                     }
+
                     sr.forget(conn);
+
                     return;
                 }
 
                 if (s_logger.isDebugEnabled()) {
-                    s_logger.debug(logX(sr, "There are still pbd attached"));
+                    s_logger.debug(logX(sr, "There is still one or more PBDs attached."));
+
                     if (s_logger.isTraceEnabled()) {
                         for (PBD pbd : pbds) {
-                            s_logger.trace(logX(pbd, " Still attached"));
+                            s_logger.trace(logX(pbd, "Still attached"));
                         }
                     }
                 }
@@ -2913,6 +2936,7 @@ public abstract class CitrixResourceBase implements ServerResource, HypervisorRe
                 s_logger.debug(logX(sr, "Catch Exception: " + e.getMessage()));
             }
         }
+
         s_logger.warn(logX(sr, "Unable to remove SR"));
     }
 
@@ -4729,14 +4753,14 @@ public abstract class CitrixResourceBase implements ServerResource, HypervisorRe
                         } else {
                             f = path + k;
                         }
-                        String d = tokens[tokens.length - 1];
+                        String directoryPath = tokens[tokens.length - 1];
                         f = f.replace('/', File.separatorChar);
 
-                        String p = "0755";
+                        String permissions = "0755";
                         if (tokens.length == 3) {
-                            p = tokens[1];
+                            permissions = tokens[1];
                         } else if (tokens.length == 2) {
-                            p = tokens[0];
+                            permissions = tokens[0];
                         }
 
                         if (!new File(f).exists()) {
@@ -4744,16 +4768,20 @@ public abstract class CitrixResourceBase implements ServerResource, HypervisorRe
                             continue;
                         }
                         if (s_logger.isDebugEnabled()) {
-                            s_logger.debug("Copying " + f + " to " + d + " on " + hr.address + " with permission " + p);
+                            s_logger.debug("Copying " + f + " to " + directoryPath + " on " + hr.address + " with permission " + permissions);
                         }
                         try {
-                            session.execCommand("mkdir -m 700 -p " + d);
+                            session.execCommand("mkdir -m 700 -p " + directoryPath);
                         } catch (IOException e) {
-                            s_logger.debug("Unable to create destination path: " + d + " on " + hr.address + " but trying anyway");
-
+                            s_logger.debug("Unable to create destination path: " + directoryPath + " on " + hr.address + " but trying anyway");
                         }
-                        scp.put(f, d, p);
-
+                        try {
+                            scp.put(f, directoryPath, permissions);
+                        } catch (IOException e) {
+                            String msg = "Unable to copy file " + f + " to path " + directoryPath + " with permissions  " + permissions;
+                            s_logger.debug(msg);
+                            throw new CloudRuntimeException("Unable to setup the server: " + msg, e);
+                        }
                     }
                 }
 

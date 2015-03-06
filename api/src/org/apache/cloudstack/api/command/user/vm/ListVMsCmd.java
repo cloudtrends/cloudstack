@@ -20,6 +20,7 @@ import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 
+import org.apache.cloudstack.api.response.UserResponse;
 import org.apache.log4j.Logger;
 
 import org.apache.cloudstack.acl.RoleType;
@@ -71,7 +72,7 @@ public class ListVMsCmd extends BaseListTaggedResourcesCmd {
     @Parameter(name=ApiConstants.IDS, type=CommandType.LIST, collectionType=CommandType.UUID, entityType=UserVmResponse.class, description="the IDs of the virtual machines, mutually exclusive with id", since = "4.4")
     private List<Long> ids;
 
-    @Parameter(name = ApiConstants.NAME, type = CommandType.STRING, description = "name of the virtual machine")
+    @Parameter(name = ApiConstants.NAME, type = CommandType.STRING, description = "name of the virtual machine (a substring match is made against the parameter value, data for all matching VMs will be returned)")
     private String name;
 
     @Parameter(name = ApiConstants.POD_ID, type = CommandType.UUID, entityType = PodResponse.class, description = "the pod ID")
@@ -129,6 +130,9 @@ public class ListVMsCmd extends BaseListTaggedResourcesCmd {
     @Parameter(name = ApiConstants.DISPLAY_VM, type = CommandType.BOOLEAN, description = "list resources by display flag; only ROOT admin is eligible to pass this parameter", since = "4.4", authorized = {RoleType.Admin})
     private Boolean display;
 
+    @Parameter(name = ApiConstants.USER_ID, type = CommandType.UUID, entityType = UserResponse.class, required = false, description = "the user ID that created the VM and is under the account that owns the VM")
+    private Long userId;
+
     /////////////////////////////////////////////////////
     /////////////////// Accessors ///////////////////////
     /////////////////////////////////////////////////////
@@ -143,6 +147,10 @@ public class ListVMsCmd extends BaseListTaggedResourcesCmd {
 
     public List<Long> getIds() {
         return ids;
+    }
+
+    public Long getUserId() {
+        return userId;
     }
 
     public String getName() {

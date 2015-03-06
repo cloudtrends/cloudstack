@@ -30,7 +30,8 @@ from marvin.lib.base import (Account,
                              SnapshotPolicy)
 from marvin.lib.common import (get_domain,
                                get_zone,
-                               get_template)
+                               get_template,
+                               find_storage_pool_type)
 from nose.plugins.attrib import attr
 from marvin.codes import PASS
 
@@ -45,6 +46,9 @@ class TestVolumes(cloudstackTestCase):
             cls.api_client = cls.testClient.getApiClient()
             cls.services = cls.testClient.getParsedTestDataConfig()
             cls.hypervisor = cls.testClient.getHypervisorInfo()
+            if cls.hypervisor.lower() == 'lxc':
+                if not find_storage_pool_type(cls.apiclient, storagetype='rbd'):
+                    raise unittest.SkipTest("RBD storage type is required for data volumes for LXC")
             # Get Domain, Zone, Template
             cls.domain = get_domain(cls.api_client)
             cls.zone = get_zone(
@@ -204,13 +208,6 @@ class TestVolumes(cloudstackTestCase):
                 "Volume is not created"
             )
 
-            self.assertEqual(
-                self.services["volume"]["diskname"],
-                volume_created.name,
-                "Newly created volume name and the test data\
-                volume name are not matching"
-            )
-
         # Listing all the volumes again after creation of volumes
         list_volumes_after = Volume.list(
             self.userapiclient,
@@ -331,12 +328,7 @@ class TestVolumes(cloudstackTestCase):
             volume_created,
             "Volume is not created"
         )
-        self.assertEqual(
-            self.services["volume"]["diskname"],
-            volume_created.name,
-            "Newly created volume name and\
-            the test data volume name are not matching"
-        )
+
         # Listing all the volumes for a user after creating a data volume
         list_volumes_after = Volume.list(
             self.userapiclient,
@@ -1780,16 +1772,10 @@ class TestVolumes(cloudstackTestCase):
         # Uploading a Volume
         volume_uploaded = Volume.upload(
             self.userapiclient,
-            self.services["upload_volume"],
+            self.services["configurableData"]["upload_volume"],
             self.zone.id
         )
         self.assertIsNotNone(volume_uploaded, "volume uploading failed")
-
-        self.assertEquals(
-            self.services["upload_volume"]["diskname"],
-            volume_uploaded.name,
-            "Uploaded volume name is not matching with name provided\
-            while uploading")
 
         # Listing the volumes for a user after uploading data volume
         list_volumes_after = Volume.list(

@@ -784,7 +784,7 @@ public class LibvirtComputingResource extends ServerResourceBase implements Serv
 
         _localStorageUUID = (String)params.get("local.storage.uuid");
         if (_localStorageUUID == null) {
-            _localStorageUUID = UUID.nameUUIDFromBytes(_localStoragePath.getBytes()).toString();
+            _localStorageUUID = UUID.randomUUID().toString();
         }
 
         value = (String)params.get("scripts.timeout");
@@ -1840,7 +1840,7 @@ public class LibvirtComputingResource extends ServerResourceBase implements Serv
                 && volFormat == PhysicalDiskFormat.QCOW2 ) {
             return "QCOW2";
         }
-        return null;
+        throw new CloudRuntimeException("Cannot determine resize type from pool type " + pool.getType());
     }
 
     /* uses a local script now, eventually support for virStorageVolResize() will maybe work on
@@ -1852,6 +1852,7 @@ public class LibvirtComputingResource extends ServerResourceBase implements Serv
         String vmInstanceName = cmd.getInstanceName();
         boolean shrinkOk = cmd.getShrinkOk();
         StorageFilerTO spool = cmd.getPool();
+        final String notifyOnlyType = "NOTIFYONLY";
 
         if ( currentSize == newSize) {
             // nothing to do
@@ -1866,9 +1867,7 @@ public class LibvirtComputingResource extends ServerResourceBase implements Serv
             String type = getResizeScriptType(pool, vol);
 
             if (pool.getType() != StoragePoolType.RBD) {
-                if (type == null) {
-                    return new ResizeVolumeAnswer(cmd, false, "Unsupported volume format: pool type '" + pool.getType() + "' and volume format '" + vol.getFormat() + "'");
-                } else if (type.equals("QCOW2") && shrinkOk) {
+                if (type.equals("QCOW2") && shrinkOk) {
                     return new ResizeVolumeAnswer(cmd, false, "Unable to shrink volumes of type " + type);
                 }
             } else {
@@ -1877,8 +1876,8 @@ public class LibvirtComputingResource extends ServerResourceBase implements Serv
 
             s_logger.debug("Resizing volume: " + path + "," + currentSize + "," + newSize + "," + type + "," + vmInstanceName + "," + shrinkOk);
 
-            /* libvirt doesn't support resizing (C)LVM devices, so we have to do that via a Bash script */
-            if (pool.getType() != StoragePoolType.CLVM) {
+            /* libvirt doesn't support resizing (C)LVM devices, and corrupts QCOW2 in some scenarios, so we have to do these via Bash script */
+            if (pool.getType() != StoragePoolType.CLVM && vol.getFormat() != PhysicalDiskFormat.QCOW2) {
                 s_logger.debug("Volume " + path +  " can be resized by libvirt. Asking libvirt to resize the volume.");
                 try {
                     Connect conn = LibvirtConnection.getConnection();
@@ -1893,27 +1892,32 @@ public class LibvirtComputingResource extends ServerResourceBase implements Serv
                     }
 
                     v.resize(newSize, flags);
+                    type = notifyOnlyType;
                 } catch (LibvirtException e) {
                     return new ResizeVolumeAnswer(cmd, false, e.toString());
                 }
-            } else {
-                s_logger.debug("Volume " + path + " is of the type LVM and can not be resized using libvirt. Invoking resize script.");
-                final Script resizecmd = new Script(_resizeVolumePath, _cmdsTimeout, s_logger);
-                resizecmd.add("-s", String.valueOf(newSize));
-                resizecmd.add("-c", String.valueOf(currentSize));
-                resizecmd.add("-p", path);
-                resizecmd.add("-t", type);
-                resizecmd.add("-r", String.valueOf(shrinkOk));
-                resizecmd.add("-v", vmInstanceName);
-                String result = resizecmd.execute();
+            }
+            s_logger.debug("Invoking resize script to handle type " + type);
+            final Script resizecmd = new Script(_resizeVolumePath, _cmdsTimeout, s_logger);
+            resizecmd.add("-s", String.valueOf(newSize));
+            resizecmd.add("-c", String.valueOf(currentSize));
+            resizecmd.add("-p", path);
+            resizecmd.add("-t", type);
+            resizecmd.add("-r", String.valueOf(shrinkOk));
+            resizecmd.add("-v", vmInstanceName);
+            String result = resizecmd.execute();
 
-                if (result != null) {
+            if (result != null) {
+                if(type.equals(notifyOnlyType)) {
+                    return new ResizeVolumeAnswer(cmd, true, "Resize succeeded, but need reboot to notify guest");
+                } else {
                     return new ResizeVolumeAnswer(cmd, false, result);
                 }
             }
 
             /* fetch new size as seen from libvirt, don't want to assume anything */
             pool = _storagePoolMgr.getStoragePool(spool.getType(), spool.getUuid());
+            pool.refresh();
             long finalSize = pool.getPhysicalDisk(volid).getVirtualSize();
             s_logger.debug("after resize, size reports as " + finalSize + ", requested " + newSize);
             return new ResizeVolumeAnswer(cmd, true, "success", finalSize);
@@ -3726,7 +3730,9 @@ public class LibvirtComputingResource extends ServerResourceBase implements Serv
             clock.setClockOffset(ClockDef.ClockOffset.LOCALTIME);
             clock.setTimer("rtc", "catchup", null);
         } else if (vmTO.getType() != VirtualMachine.Type.User || isGuestPVEnabled(vmTO.getOs())) {
-            clock.setTimer("kvmclock", "catchup", null, _noKvmClock);
+            if (_hypervisorLibvirtVersion >= (9 * 1000 + 10)) {
+                clock.setTimer("kvmclock", null, null, _noKvmClock);
+            }
         }
 
         vm.addComp(clock);
@@ -4078,6 +4084,10 @@ public class LibvirtComputingResource extends ServerResourceBase implements Serv
         }
 
         return _storagePoolMgr.disconnectPhysicalDiskByPath(path);
+    }
+
+    protected KVMStoragePoolManager getPoolManager() {
+        return _storagePoolMgr;
     }
 
     protected synchronized String attachOrDetachISO(Connect conn, String vmName, String isoPath, boolean isAttach) throws LibvirtException, URISyntaxException,
@@ -4744,7 +4754,7 @@ public class LibvirtComputingResource extends ServerResourceBase implements Serv
                 guestOSName.startsWith("CentOS 5.5") || guestOSName.startsWith("CentOS") || guestOSName.startsWith("Fedora") ||
                 guestOSName.startsWith("Red Hat Enterprise Linux 5.3") || guestOSName.startsWith("Red Hat Enterprise Linux 5.4") ||
                 guestOSName.startsWith("Red Hat Enterprise Linux 5.5") || guestOSName.startsWith("Red Hat Enterprise Linux 6") || guestOSName.startsWith("Debian GNU/Linux") ||
-                guestOSName.startsWith("FreeBSD 10") || guestOSName.startsWith("Other PV")) {
+                guestOSName.startsWith("FreeBSD 10") || guestOSName.startsWith("Oracle") || guestOSName.startsWith("Other PV")) {
             return true;
         } else {
             return false;

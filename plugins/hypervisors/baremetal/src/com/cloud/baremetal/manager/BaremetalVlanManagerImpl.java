@@ -42,7 +42,7 @@ import com.google.gson.Gson;
 import org.apache.cloudstack.api.AddBaremetalRctCmd;
 import org.apache.cloudstack.api.DeleteBaremetalRctCmd;
 import org.apache.cloudstack.api.ListBaremetalRctCmd;
-import org.apache.cloudstack.api.command.admin.user.RegisterCmd;
+import org.apache.cloudstack.utils.baremetal.BaremetalUtils;
 import org.springframework.web.client.RestTemplate;
 
 import javax.inject.Inject;
@@ -235,14 +235,14 @@ public class BaremetalVlanManagerImpl extends ManagerBase implements BaremetalVl
     @Override
     public boolean start() {
         QueryBuilder<AccountVO> acntq = QueryBuilder.create(AccountVO.class);
-        acntq.and(acntq.entity().getAccountName(), SearchCriteria.Op.EQ, BaremetalVlanManager.BAREMETAL_SYSTEM_ACCOUNT_NAME);
+        acntq.and(acntq.entity().getAccountName(), SearchCriteria.Op.EQ, BaremetalUtils.BAREMETAL_SYSTEM_ACCOUNT_NAME);
         AccountVO acnt = acntq.find();
         if (acnt != null) {
             return true;
         }
 
         acnt = new AccountVO();
-        acnt.setAccountName(BAREMETAL_SYSTEM_ACCOUNT_NAME);
+        acnt.setAccountName(BaremetalUtils.BAREMETAL_SYSTEM_ACCOUNT_NAME);
         acnt.setUuid(UUID.randomUUID().toString());
         acnt.setState(Account.State.enabled);
         acnt.setDomainId(1);
@@ -252,15 +252,13 @@ public class BaremetalVlanManagerImpl extends ManagerBase implements BaremetalVl
         user.setState(Account.State.enabled);
         user.setUuid(UUID.randomUUID().toString());
         user.setAccountId(acnt.getAccountId());
-        user.setUsername(BAREMETAL_SYSTEM_ACCOUNT_NAME);
-        user.setFirstname(BAREMETAL_SYSTEM_ACCOUNT_NAME);
-        user.setLastname(BAREMETAL_SYSTEM_ACCOUNT_NAME);
+        user.setUsername(BaremetalUtils.BAREMETAL_SYSTEM_ACCOUNT_NAME);
+        user.setFirstname(BaremetalUtils.BAREMETAL_SYSTEM_ACCOUNT_NAME);
+        user.setLastname(BaremetalUtils.BAREMETAL_SYSTEM_ACCOUNT_NAME);
         user.setPassword(UUID.randomUUID().toString());
         user = userDao.persist(user);
 
-        RegisterCmd cmd = new RegisterCmd();
-        cmd.setId(user.getId());
-        String[] keys = acntMgr.createApiKeyAndSecretKey(cmd);
+        String[] keys = acntMgr.createApiKeyAndSecretKey(user.getId());
         user.setApiKey(keys[0]);
         user.setSecretKey(keys[1]);
         userDao.update(user.getId(), user);

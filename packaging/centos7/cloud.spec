@@ -277,7 +277,7 @@ mv ${RPM_BUILD_ROOT}%{_datadir}/%{name}-management/webapps/client/WEB-INF/classe
     ${RPM_BUILD_ROOT}%{_sysconfdir}/%{name}/management/Catalina/localhost/client
 
 install python/bindir/cloud-external-ipallocator.py ${RPM_BUILD_ROOT}%{_bindir}/%{name}-external-ipallocator.py
-install -D client/target/pythonlibs/jasypt-1.9.0.jar ${RPM_BUILD_ROOT}%{_datadir}/%{name}-common/lib/jasypt-1.9.0.jar
+install -D client/target/pythonlibs/jasypt-1.9.2.jar ${RPM_BUILD_ROOT}%{_datadir}/%{name}-common/lib/jasypt-1.9.2.jar
 
 install -D packaging/centos7/cloud-ipallocator.rc ${RPM_BUILD_ROOT}%{_initrddir}/%{name}-ipallocator
 install -D packaging/centos7/cloud-management.sysconfig ${RPM_BUILD_ROOT}%{_sysconfdir}/sysconfig/%{name}-management
@@ -490,7 +490,6 @@ fi
 %dir %attr(0770,root,cloud) %{_localstatedir}/cache/%{name}/management/work
 %dir %attr(0770,root,cloud) %{_localstatedir}/cache/%{name}/management/temp
 %dir %attr(0770,root,cloud) %{_localstatedir}/log/%{name}/management
-%dir %attr(0770,root,cloud) %{_localstatedir}/log/%{name}/agent
 %dir %attr(0770,root,cloud) %{_localstatedir}/log/%{name}/awsapi
 %config(noreplace) %{_sysconfdir}/sysconfig/%{name}-management
 %config(noreplace) %{_sysconfdir}/sudoers.d/%{name}-management
@@ -559,7 +558,7 @@ fi
 %attr(0644,root,root) %{python_sitearch}/cloud_utils.py
 %attr(0644,root,root) %{python_sitearch}/cloud_utils.pyc
 %attr(0644,root,root) %{python_sitearch}/cloudutils/*
-%attr(0644, root, root) %{_datadir}/%{name}-common/lib/jasypt-1.9.0.jar
+%attr(0644, root, root) %{_datadir}/%{name}-common/lib/jasypt-1.9.2.jar
 %{_defaultdocdir}/%{name}-common-%{version}/LICENSE
 %{_defaultdocdir}/%{name}-common-%{version}/NOTICE
 

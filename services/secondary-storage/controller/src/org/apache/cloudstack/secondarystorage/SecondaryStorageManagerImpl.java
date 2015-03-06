@@ -506,6 +506,8 @@ public class SecondaryStorageManagerImpl extends ManagerBase implements Secondar
                 s_logger.debug("Unable to allocate secondary storage vm storage, remove the secondary storage vm record from DB, secondary storage vm id: " +
                     secStorageVmId);
             }
+            SubscriptionMgr.getInstance().notifySubscribers(ALERT_SUBJECT, this,
+                new SecStorageVmAlertEventArgs(SecStorageVmAlertEventArgs.SSVM_CREATE_FAILURE, dataCenterId, secStorageVmId, null, "Unable to allocate storage"));
         }
         return null;
     }
@@ -573,7 +575,7 @@ public class SecondaryStorageManagerImpl extends ManagerBase implements Secondar
 
         SecondaryStorageVmVO secStorageVm =
             new SecondaryStorageVmVO(id, _serviceOffering.getId(), name, template.getId(), template.getHypervisorType(), template.getGuestOSId(), dataCenterId,
-                systemAcct.getDomainId(), systemAcct.getId(), role, _serviceOffering.getOfferHA());
+                systemAcct.getDomainId(), systemAcct.getId(), _accountMgr.getSystemUser().getId(), role, _serviceOffering.getOfferHA());
         secStorageVm.setDynamicallyScalable(template.isDynamicallyScalable());
         secStorageVm = _secStorageVmDao.persist(secStorageVm);
         try {
