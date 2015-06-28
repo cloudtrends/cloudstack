@@ -43,7 +43,8 @@ from marvin.lib.common import (get_domain,
                                            wait_for_cleanup,
                                            list_virtual_machines,
                                            list_hosts,
-                                           findSuitableHostForMigration)
+                                           findSuitableHostForMigration,
+                                           verifyGuestTrafficPortGroups)
 
 from marvin.codes import PASS, ERROR_NO_HOST_FOR_MIGRATION
 
@@ -352,7 +353,7 @@ class TestVMLifeCycleVPC(cloudstackTestCase):
                                 services=cls.services["lbrule"],
                                 traffictype='Ingress'
                                 )
-
+        cls.services["icmp_rule"]["protocol"] = "all"
         cls.nwacl_internet_1 = NetworkACL.create(
                                         cls.api_client,
                                         networkid=cls.network_1.id,
@@ -491,7 +492,7 @@ class TestVMLifeCycleVPC(cloudstackTestCase):
                          )
         return
 
-    @attr(tags=["advanced", "intervlan"])
+    @attr(tags=["advanced", "intervlan", "dvs"])
     def test_01_deploy_instance_in_network(self):
         """ Test deploy an instance in VPC networks
         """
@@ -524,7 +525,7 @@ class TestVMLifeCycleVPC(cloudstackTestCase):
                              )
         return
 
-    @attr(tags=["advanced", "intervlan"])
+    @attr(tags=["advanced", "intervlan", "dvs"])
     def test_02_stop_instance_in_network(self):
         """ Test stop an instance in VPC networks
         """
@@ -566,7 +567,7 @@ class TestVMLifeCycleVPC(cloudstackTestCase):
                          )
         return
 
-    @attr(tags=["advanced", "intervlan"], required_hardware="true")
+    @attr(tags=["advanced", "intervlan", "dvs"], required_hardware="true")
     def test_03_start_instance_in_network(self):
         """ Test start an instance in VPC networks
         """
@@ -591,7 +592,7 @@ class TestVMLifeCycleVPC(cloudstackTestCase):
         self.validate_network_rules()
         return
 
-    @attr(tags=["advanced", "intervlan"], required_hardware="true")
+    @attr(tags=["advanced", "intervlan", "dvs"], required_hardware="true")
     def test_04_reboot_instance_in_network(self):
         """ Test reboot an instance in VPC networks
         """
@@ -620,7 +621,7 @@ class TestVMLifeCycleVPC(cloudstackTestCase):
         self.validate_network_rules()
         return
 
-    @attr(tags=["advanced","multihost", "intervlan"], required_hardware="true")
+    @attr(tags=["advanced","multihost", "intervlan", "dvs"], required_hardware="true")
     def test_05_destroy_instance_in_network(self):
         """ Test destroy an instance in VPC networks
         """
@@ -787,7 +788,7 @@ class TestVMLifeCycleVPC(cloudstackTestCase):
         return
 
 
-    @attr(tags=["advanced", "intervlan"], required_hardware="true")
+    @attr(tags=["advanced", "intervlan", "dvs"], required_hardware="true")
     def test_07_migrate_instance_in_network(self):
         """ Test migrate an instance in VPC networks
         """
@@ -823,7 +824,7 @@ class TestVMLifeCycleVPC(cloudstackTestCase):
         self.validate_network_rules()
         return
 
-    @attr(tags=["advanced", "intervlan"], required_hardware="true")
+    @attr(tags=["advanced", "intervlan", "dvs"], required_hardware="true")
     def test_08_user_data(self):
         """ Test user data in virtual machines
         """
@@ -842,6 +843,7 @@ class TestVMLifeCycleVPC(cloudstackTestCase):
                                 ipaddress=self.public_ip_1.ipaddress.ipaddress,
                                 reconnect=True)
             self.debug("SSH into VM is successfully")
+            ssh.execute("yum install wget -y")
         except Exception as e:
             self.fail("Failed to SSH into instance")
 
@@ -866,7 +868,7 @@ class TestVMLifeCycleVPC(cloudstackTestCase):
                         )
         return
 
-    @attr(tags=["advanced", "intervlan"], required_hardware="true")
+    @attr(tags=["advanced", "intervlan", "dvs"], required_hardware="true")
     def test_09_meta_data(self):
         """ Test meta data in virtual machines
         """
@@ -908,7 +910,7 @@ class TestVMLifeCycleVPC(cloudstackTestCase):
                         )
         return
 
-    @attr(tags=["advanced", "intervlan"], required_hardware="true")
+    @attr(tags=["advanced", "intervlan", "dvs"], required_hardware="true")
     def test_10_expunge_instance_in_network(self):
         """ Test expunge an instance in VPC networks
         """
@@ -1145,7 +1147,7 @@ class TestVMLifeCycleSharedNwVPC(cloudstackTestCase):
                                 services=cls.services["lbrule"],
                                 traffictype='Ingress'
                                 )
-
+        cls.services["icmp_rule"]["protocol"] = "all"
         cls.nwacl_internet_1 = NetworkACL.create(
                                         cls.api_client,
                                         networkid=cls.network_1.id,
@@ -1595,6 +1597,7 @@ class TestVMLifeCycleSharedNwVPC(cloudstackTestCase):
                                 ipaddress=self.public_ip_1.ipaddress.ipaddress,
                                 reconnect=True)
             self.debug("SSH into VM is successfully")
+            ssh.execute("yum install wget -y")
         except Exception as e:
             self.fail("Failed to SSH into instance")
 
@@ -1734,6 +1737,7 @@ class TestVMLifeCycleBothIsolated(cloudstackTestCase):
         cls.api_client = cls.testClient.getApiClient()
 
         cls.services = Services().services
+        cls.hypervisor = cls.testClient.getHypervisorInfo()
         # Get Zone, Domain and templates
         cls.domain = get_domain(cls.api_client)
         cls.zone = get_zone(cls.api_client, cls.testClient.getZoneForTests())
@@ -2059,6 +2063,17 @@ class TestVMLifeCycleBothIsolated(cloudstackTestCase):
                          "VM state should be running after deployment"
                          )
         return
+
+    @attr(tags=["dvs"], required_hardware="true")
+    def test_guest_traffic_port_groups_vpc_network(self):
+        """ Verify port groups are created for guest traffic
+        used by vpc network """
+
+        if self.hypervisor.lower() == "vmware":
+            response = verifyGuestTrafficPortGroups(self.apiclient,
+                                                    self.config,
+                                                    self.zone)
+            assert response[0] == PASS, response[1]
 
 class TestVMLifeCycleStoppedVPCVR(cloudstackTestCase):
 
@@ -2872,7 +2887,7 @@ class TestVMLifeCycleDiffHosts(cloudstackTestCase):
                                 services=cls.services["lbrule"],
                                 traffictype='Ingress'
                                 )
-
+            cls.services["icmp_rule"]["protocol"] = "all"
             cls.nwacl_internet = NetworkACL.create(
                                         cls.api_client,
                                         networkid=cls.network_1.id,
@@ -3066,7 +3081,7 @@ class TestVMLifeCycleDiffHosts(cloudstackTestCase):
 
         return
 
-    @attr(tags=["advanced","multihost", "intervlan"], required_hardware="true")
+    @attr(tags=["advanced","multihost", "intervlan", "dvs"], required_hardware="true")
     def test_01_deploy_instance_in_network(self):
         """ Test deploy an instance in VPC networks
         """
@@ -3100,7 +3115,7 @@ class TestVMLifeCycleDiffHosts(cloudstackTestCase):
                              )
         return
 
-    @attr(tags=["advanced","multihost", "intervlan"], required_hardware="true")
+    @attr(tags=["advanced","multihost", "intervlan", "dvs"], required_hardware="true")
     def test_02_stop_instance_in_network(self):
         """ Test stop an instance in VPC networks
         """
@@ -3142,7 +3157,7 @@ class TestVMLifeCycleDiffHosts(cloudstackTestCase):
                          )
         return
 
-    @attr(tags=["advanced","multihost", "intervlan"], required_hardware="true")
+    @attr(tags=["advanced","multihost", "intervlan", "dvs"], required_hardware="true")
     def test_03_start_instance_in_network(self):
         """ Test start an instance in VPC networks
         """
@@ -3193,7 +3208,7 @@ class TestVMLifeCycleDiffHosts(cloudstackTestCase):
         self.validate_network_rules()
         return
 
-    @attr(tags=["advanced","multihost", "intervlan"], required_hardware="true")
+    @attr(tags=["advanced","multihost", "intervlan", "dvs"], required_hardware="true")
     def test_04_reboot_instance_in_network(self):
         """ Test reboot an instance in VPC networks
         """
@@ -3220,7 +3235,7 @@ class TestVMLifeCycleDiffHosts(cloudstackTestCase):
         self.validate_network_rules()
         return
 
-    @attr(tags=["advanced","multihost", "intervlan"], required_hardware="true")
+    @attr(tags=["advanced","multihost", "intervlan", "dvs"], required_hardware="true")
     def test_05_destroy_instance_in_network(self):
         """ Test destroy an instance in VPC networks
         """
@@ -3383,7 +3398,7 @@ class TestVMLifeCycleDiffHosts(cloudstackTestCase):
 
         return
 
-    @attr(tags=["advanced","multihost", "intervlan"], required_hardware="true")
+    @attr(tags=["advanced","multihost", "intervlan", "dvs"], required_hardware="true")
     def test_06_migrate_instance_in_network(self):
         """ Test migrate an instance in VPC networks
         """
@@ -3419,7 +3434,7 @@ class TestVMLifeCycleDiffHosts(cloudstackTestCase):
         self.validate_network_rules()
         return
 
-    @attr(tags=["advanced","multihost", "intervlan"], required_hardware="true")
+    @attr(tags=["advanced","multihost", "intervlan", "dvs"], required_hardware="true")
     def test_07_user_data(self):
         """ Test user data in virtual machines
         """
@@ -3443,6 +3458,7 @@ class TestVMLifeCycleDiffHosts(cloudstackTestCase):
                                 "get_ssh_client should return ssh handle")
 
             self.debug("SSH into VM is successfully")
+            ssh.execute("yum install wget -y")
         except Exception as e:
             self.fail("Failed to SSH into instance: %s" % e)
 
@@ -3467,7 +3483,7 @@ class TestVMLifeCycleDiffHosts(cloudstackTestCase):
                         )
         return
 
-    @attr(tags=["advanced","multihost", "intervlan"], required_hardware="true")
+    @attr(tags=["advanced","multihost", "intervlan", "dvs"], required_hardware="true")
     def test_08_meta_data(self):
         """ Test meta data in virtual machines
         """
@@ -3514,7 +3530,7 @@ class TestVMLifeCycleDiffHosts(cloudstackTestCase):
                         )
         return
 
-    @attr(tags=["advanced","multihost", "intervlan"], required_hardware="true")
+    @attr(tags=["advanced","multihost", "intervlan", "dvs"], required_hardware="true")
     def test_09_expunge_instance_in_network(self):
         """ Test expunge an instance in VPC networks
         """

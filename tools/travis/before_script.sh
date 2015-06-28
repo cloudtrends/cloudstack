@@ -19,12 +19,26 @@
 # This script should be used to bring up the environment.
 #
 
-export CATALINA_BASE=/opt/tomcat
-export CATALINA_HOME=/opt/tomcat
-export M2_HOME="/usr/local/maven-3.2.1/"
-export MAVEN_OPTS="-Xmx1024m -XX:MaxPermSize=500m"
 
-mvn -Dsimulator -pl :cloud-client-ui jetty:run 2>&1 > /dev/null &
+export TEST_JOB_NUMBER=`echo $TRAVIS_JOB_NUMBER | cut -d. -f1`
+export TEST_SEQUENCE_NUMBER=`echo $TRAVIS_JOB_NUMBER | cut -d. -f2`
 
-while ! nc -vz localhost 8096 2>&1 > /dev/null; do sleep 10; done
+#run regression test only on $REGRESSION_CYCLE
+MOD=$(( $TEST_JOB_NUMBER % $REGRESSION_CYCLE ))
+
+if [ $MOD -ne 0 ]; then
+ if [ $TEST_SEQUENCE_NUMBER -ge $REGRESSION_INDEX ]; then
+   #skip test
+   echo "Skipping tests ... SUCCESS !"
+   exit 0
+ fi
+fi
+
+
+export MAVEN_OPTS="-Xmx1024m -XX:MaxPermSize=500m -Djava.security.egd=file:/dev/./urandom"
+echo -e "\nStarting simulator"
+mvn -Dsimulator -pl :cloud-client-ui jetty:run 2>&1 > /tmp/jetty-log &
+
+while ! nc -vzw 5 localhost 8096 2>&1 > /dev/null; do grep Exception /tmp/jetty-log; sleep 10; done
+echo -e "\nStarting DataCenter deployment"
 python -m marvin.deployDataCenter -i setup/dev/advanced.cfg 2>&1 || true

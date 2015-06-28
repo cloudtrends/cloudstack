@@ -16,6 +16,8 @@
 // under the License.
 package com.cloud.hypervisor.kvm.resource;
 
+import org.apache.commons.lang.StringEscapeUtils;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -57,6 +59,7 @@ public class LibvirtVMDef {
         private String _initrd;
         private String _root;
         private String _cmdline;
+        private String _uuid;
         private final List<bootOrder> _bootdevs = new ArrayList<bootOrder>();
         private String _machine;
 
@@ -91,10 +94,23 @@ public class LibvirtVMDef {
             _bootdevs.add(order);
         }
 
+        public void setUuid(String uuid) {
+            _uuid = uuid;
+        }
+
         @Override
         public String toString() {
             if (_type == guestType.KVM) {
                 StringBuilder guestDef = new StringBuilder();
+
+                guestDef.append("<sysinfo type='smbios'>\n");
+                guestDef.append("<system>\n");
+                guestDef.append("<entry name='manufacturer'>Apache Software Foundation</entry>\n");
+                guestDef.append("<entry name='product'>CloudStack " + _type.toString() + " Hypervisor</entry>\n");
+                guestDef.append("<entry name='uuid'>" + _uuid + "</entry>\n");
+                guestDef.append("</system>\n");
+                guestDef.append("</sysinfo>\n");
+
                 guestDef.append("<os>\n");
                 guestDef.append("<type ");
                 if (_arch != null) {
@@ -109,6 +125,7 @@ public class LibvirtVMDef {
                         guestDef.append("<boot dev='" + bo + "'/>\n");
                     }
                 }
+                guestDef.append("<smbios mode='sysinfo'/>\n");
                 guestDef.append("</os>\n");
                 return guestDef.toString();
             } else if (_type == guestType.LXC) {
@@ -782,7 +799,7 @@ public class LibvirtVMDef {
         }
 
         enum nicModel {
-            E1000("e1000"), VIRTIO("virtio"), RTL8139("rtl8139"), NE2KPCI("ne2k_pci");
+            E1000("e1000"), VIRTIO("virtio"), RTL8139("rtl8139"), NE2KPCI("ne2k_pci"), VMXNET3("vmxnet3");
             String _model;
 
             nicModel(String model) {
@@ -965,7 +982,7 @@ public class LibvirtVMDef {
                 netBuilder.append("<script path='" + _scriptPath + "'/>\n");
             }
             if (_pxeDisable) {
-                netBuilder.append("<rom bar='off' file='dummy'/>");
+                netBuilder.append("<rom bar='off' file=''/>");
             }
             if (_virtualPortType != null) {
                 netBuilder.append("<virtualport type='" + _virtualPortType + "'>\n");
@@ -1041,11 +1058,18 @@ public class LibvirtVMDef {
     public static class CpuModeDef {
         private String _mode;
         private String _model;
+        private List<String> _features;
         private int _coresPerSocket = -1;
         private int _sockets = -1;
 
         public void setMode(String mode) {
             _mode = mode;
+        }
+
+        public void setFeatures(List<String> features) {
+            if (features != null) {
+                _features = features;
+            }
         }
 
         public void setModel(String model) {
@@ -1070,6 +1094,12 @@ public class LibvirtVMDef {
                 modeBuilder.append("<cpu mode='host-passthrough'>");
             } else {
                 modeBuilder.append("<cpu>");
+            }
+
+            if (_features != null) {
+                for (String feature : _features) {
+                    modeBuilder.append("<feature policy='require' name='" + feature + "'/>");
+                }
             }
 
             // add topology
@@ -1168,7 +1198,7 @@ public class LibvirtVMDef {
             _port = port;
             _autoPort = autoPort;
             _listenAddr = listenAddr;
-            _passwd = passwd;
+            _passwd = StringEscapeUtils.escapeXml(passwd);
             _keyMap = keyMap;
         }
 

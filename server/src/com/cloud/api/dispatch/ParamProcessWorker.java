@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.StringTokenizer;
 import java.util.regex.Matcher;
+import java.text.SimpleDateFormat;
 
 import javax.inject.Inject;
 
@@ -50,6 +51,7 @@ import org.apache.cloudstack.api.Parameter;
 import org.apache.cloudstack.api.ServerApiException;
 import org.apache.cloudstack.api.command.admin.resource.ArchiveAlertsCmd;
 import org.apache.cloudstack.api.command.admin.resource.DeleteAlertsCmd;
+import org.apache.cloudstack.api.command.admin.usage.GetUsageRecordsCmd;
 import org.apache.cloudstack.api.command.user.event.ArchiveEventsCmd;
 import org.apache.cloudstack.api.command.user.event.DeleteEventsCmd;
 import org.apache.cloudstack.api.command.user.event.ListEventsCmd;
@@ -65,6 +67,8 @@ import com.cloud.utils.exception.CloudRuntimeException;
 public class ParamProcessWorker implements DispatchWorker {
 
     private static final Logger s_logger = Logger.getLogger(ParamProcessWorker.class.getName());
+    public final DateFormat inputFormat = new SimpleDateFormat("yyyy-MM-dd");
+    public final DateFormat newInputFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
 
     @Inject
     protected AccountManager _accountMgr;
@@ -254,17 +258,16 @@ public class ParamProcessWorker implements DispatchWorker {
             case DATE:
                 // This piece of code is for maintaining backward compatibility
                 // and support both the date formats(Bug 9724)
-                // Do the date messaging for ListEventsCmd only
                 if (cmdObj instanceof ListEventsCmd || cmdObj instanceof DeleteEventsCmd || cmdObj instanceof ArchiveEventsCmd ||
-                        cmdObj instanceof ArchiveAlertsCmd || cmdObj instanceof DeleteAlertsCmd) {
+                        cmdObj instanceof ArchiveAlertsCmd || cmdObj instanceof DeleteAlertsCmd || cmdObj instanceof GetUsageRecordsCmd) {
                     final boolean isObjInNewDateFormat = isObjInNewDateFormat(paramObj.toString());
                     if (isObjInNewDateFormat) {
-                        final DateFormat newFormat = BaseCmd.NEW_INPUT_FORMAT;
+                        final DateFormat newFormat = newInputFormat;
                         synchronized (newFormat) {
                             field.set(cmdObj, newFormat.parse(paramObj.toString()));
                         }
                     } else {
-                        final DateFormat format = BaseCmd.INPUT_FORMAT;
+                        final DateFormat format = inputFormat;
                         synchronized (format) {
                             Date date = format.parse(paramObj.toString());
                             if (field.getName().equals("startDate")) {
@@ -276,7 +279,7 @@ public class ParamProcessWorker implements DispatchWorker {
                         }
                     }
                 } else {
-                    final DateFormat format = BaseCmd.INPUT_FORMAT;
+                    final DateFormat format = inputFormat;
                     synchronized (format) {
                         format.setLenient(false);
                         field.set(cmdObj, format.parse(paramObj.toString()));

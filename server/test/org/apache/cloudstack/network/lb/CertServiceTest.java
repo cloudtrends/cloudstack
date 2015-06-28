@@ -30,8 +30,10 @@ import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.net.URLDecoder;
 
 import org.apache.cloudstack.api.command.user.loadbalancer.DeleteSslCertCmd;
+import com.cloud.user.User;
 import org.apache.cloudstack.api.command.user.loadbalancer.UploadSslCertCmd;
 import org.apache.cloudstack.context.CallContext;
 import org.junit.After;
@@ -54,13 +56,14 @@ import com.cloud.user.UserVO;
 import com.cloud.user.dao.AccountDao;
 import com.cloud.utils.db.EntityManager;
 import com.cloud.utils.db.TransactionLegacy;
+import java.nio.charset.Charset;
 
 public class CertServiceTest {
 
     @Before
     public void setUp() {
         Account account = new AccountVO("testaccount", 1, "networkdomain", (short)0, UUID.randomUUID().toString());
-        UserVO user = new UserVO(1, "testuser", "password", "firstname", "lastName", "email", "timezone", UUID.randomUUID().toString());
+        UserVO user = new UserVO(1, "testuser", "password", "firstname", "lastName", "email", "timezone", UUID.randomUUID().toString(), User.Source.UNKNOWN);
         CallContext.register(user, account);
     }
 
@@ -96,9 +99,9 @@ public class CertServiceTest {
 
         TransactionLegacy txn = TransactionLegacy.open("runUploadSslCertWithCAChain");
 
-        String certFile = getClass().getResource("/certs/rsa_ca_signed.crt").getFile();
-        String keyFile = getClass().getResource("/certs/rsa_ca_signed.key").getFile();
-        String chainFile = getClass().getResource("/certs/root_chain.crt").getFile();
+        String certFile = URLDecoder.decode(getClass().getResource("/certs/rsa_ca_signed.crt").getFile(),Charset.defaultCharset().name());
+        String keyFile = URLDecoder.decode(getClass().getResource("/certs/rsa_ca_signed.key").getFile(),Charset.defaultCharset().name());
+        String chainFile = URLDecoder.decode(getClass().getResource("/certs/root_chain.crt").getFile(),Charset.defaultCharset().name());
 
         String cert = readFileToString(new File(certFile));
         String key = readFileToString(new File(keyFile));
@@ -148,8 +151,8 @@ public class CertServiceTest {
 
         TransactionLegacy txn = TransactionLegacy.open("runUploadSslCertSelfSignedWithPassword");
 
-        String certFile = getClass().getResource("/certs/rsa_self_signed_with_pwd.crt").getFile();
-        String keyFile = getClass().getResource("/certs/rsa_self_signed_with_pwd.key").getFile();
+        String certFile = URLDecoder.decode(getClass().getResource("/certs/rsa_self_signed_with_pwd.crt").getFile(),Charset.defaultCharset().name());
+        String keyFile = URLDecoder.decode(getClass().getResource("/certs/rsa_self_signed_with_pwd.key").getFile(),Charset.defaultCharset().name());
         String password = "test";
 
         String cert = readFileToString(new File(certFile));
@@ -199,8 +202,8 @@ public class CertServiceTest {
 
         TransactionLegacy txn = TransactionLegacy.open("runUploadSslCertSelfSignedNoPassword");
 
-        String certFile = getClass().getResource("/certs/rsa_self_signed.crt").getFile();
-        String keyFile = getClass().getResource("/certs/rsa_self_signed.key").getFile();
+        String certFile = URLDecoder.decode(getClass().getResource("/certs/rsa_self_signed.crt").getFile(),Charset.defaultCharset().name());
+        String keyFile = URLDecoder.decode(getClass().getResource("/certs/rsa_self_signed.key").getFile(),Charset.defaultCharset().name());
 
         String cert = readFileToString(new File(certFile));
         String key = readFileToString(new File(keyFile));
@@ -242,9 +245,9 @@ public class CertServiceTest {
     public void runUploadSslCertBadChain() throws IOException, IllegalAccessException, NoSuchFieldException {
         Assume.assumeTrue(isOpenJdk() || isJCEInstalled());
 
-        String certFile = getClass().getResource("/certs/rsa_ca_signed.crt").getFile();
-        String keyFile = getClass().getResource("/certs/rsa_ca_signed.key").getFile();
-        String chainFile = getClass().getResource("/certs/rsa_self_signed.crt").getFile();
+        String certFile = URLDecoder.decode(getClass().getResource("/certs/rsa_ca_signed.crt").getFile(),Charset.defaultCharset().name());
+        String keyFile = URLDecoder.decode(getClass().getResource("/certs/rsa_ca_signed.key").getFile(),Charset.defaultCharset().name());
+        String chainFile = URLDecoder.decode(getClass().getResource("/certs/rsa_self_signed.crt").getFile(),Charset.defaultCharset().name());
 
         String cert = readFileToString(new File(certFile));
         String key = readFileToString(new File(keyFile));
@@ -294,9 +297,9 @@ public class CertServiceTest {
 
         Assume.assumeTrue(isOpenJdk() || isJCEInstalled());
 
-        String certFile = getClass().getResource("/certs/rsa_ca_signed.crt").getFile();
-        String keyFile = getClass().getResource("/certs/rsa_ca_signed.key").getFile();
-        String chainFile = getClass().getResource("/certs/non_root.crt").getFile();
+        String certFile = URLDecoder.decode(getClass().getResource("/certs/rsa_ca_signed.crt").getFile(),Charset.defaultCharset().name());
+        String keyFile = URLDecoder.decode(getClass().getResource("/certs/rsa_ca_signed.key").getFile(),Charset.defaultCharset().name());
+        String chainFile = URLDecoder.decode(getClass().getResource("/certs/non_root.crt").getFile(),Charset.defaultCharset().name());
 
         String cert = readFileToString(new File(certFile));
         String key = readFileToString(new File(keyFile));
@@ -345,8 +348,8 @@ public class CertServiceTest {
     @Test
     public void runUploadSslCertBadPassword() throws IOException, IllegalAccessException, NoSuchFieldException {
 
-        String certFile = getClass().getResource("/certs/rsa_self_signed_with_pwd.crt").getFile();
-        String keyFile = getClass().getResource("/certs/rsa_self_signed_with_pwd.key").getFile();
+        String certFile = URLDecoder.decode(getClass().getResource("/certs/rsa_self_signed_with_pwd.crt").getFile(),Charset.defaultCharset().name());
+        String keyFile = URLDecoder.decode(getClass().getResource("/certs/rsa_self_signed_with_pwd.key").getFile(),Charset.defaultCharset().name());
         String password = "bad_password";
 
         String cert = readFileToString(new File(certFile));
@@ -394,8 +397,8 @@ public class CertServiceTest {
     @Test
     public void runUploadSslCertBadkeyPair() throws IOException, IllegalAccessException, NoSuchFieldException {
         // Reading appropritate files
-        String certFile = getClass().getResource("/certs/rsa_self_signed.crt").getFile();
-        String keyFile = getClass().getResource("/certs/non_root.key").getFile();
+        String certFile = URLDecoder.decode(getClass().getResource("/certs/rsa_self_signed.crt").getFile(),Charset.defaultCharset().name());
+        String keyFile = URLDecoder.decode(getClass().getResource("/certs/non_root.key").getFile(),Charset.defaultCharset().name());
 
         String cert = readFileToString(new File(certFile));
         String key = readFileToString(new File(keyFile));
@@ -437,8 +440,8 @@ public class CertServiceTest {
     public void runUploadSslCertBadkeyAlgo() throws IOException, IllegalAccessException, NoSuchFieldException {
 
         // Reading appropritate files
-        String certFile = getClass().getResource("/certs/rsa_self_signed.crt").getFile();
-        String keyFile = getClass().getResource("/certs/dsa_self_signed.key").getFile();
+        String certFile = URLDecoder.decode(getClass().getResource("/certs/rsa_self_signed.crt").getFile(),Charset.defaultCharset().name());
+        String keyFile = URLDecoder.decode(getClass().getResource("/certs/dsa_self_signed.key").getFile(),Charset.defaultCharset().name());
 
         String cert = readFileToString(new File(certFile));
         String key = readFileToString(new File(keyFile));
@@ -481,8 +484,8 @@ public class CertServiceTest {
     public void runUploadSslCertExpiredCert() throws IOException, IllegalAccessException, NoSuchFieldException {
 
         // Reading appropritate files
-        String certFile = getClass().getResource("/certs/expired_cert.crt").getFile();
-        String keyFile = getClass().getResource("/certs/rsa_self_signed.key").getFile();
+        String certFile = URLDecoder.decode(getClass().getResource("/certs/expired_cert.crt").getFile(),Charset.defaultCharset().name());
+        String keyFile = URLDecoder.decode(getClass().getResource("/certs/rsa_self_signed.key").getFile(),Charset.defaultCharset().name());
 
         String cert = readFileToString(new File(certFile));
         String key = readFileToString(new File(keyFile));
@@ -524,8 +527,8 @@ public class CertServiceTest {
     @Test
     public void runUploadSslCertNotX509() throws IOException, IllegalAccessException, NoSuchFieldException {
         // Reading appropritate files
-        String certFile = getClass().getResource("/certs/non_x509_pem.crt").getFile();
-        String keyFile = getClass().getResource("/certs/rsa_self_signed.key").getFile();
+        String certFile = URLDecoder.decode(getClass().getResource("/certs/non_x509_pem.crt").getFile(),Charset.defaultCharset().name());
+        String keyFile = URLDecoder.decode(getClass().getResource("/certs/rsa_self_signed.key").getFile(),Charset.defaultCharset().name());
 
         String cert = readFileToString(new File(certFile));
         String key = readFileToString(new File(keyFile));
@@ -568,8 +571,8 @@ public class CertServiceTest {
     public void runUploadSslCertBadFormat() throws IOException, IllegalAccessException, NoSuchFieldException {
 
         // Reading appropritate files
-        String certFile = getClass().getResource("/certs/bad_format_cert.crt").getFile();
-        String keyFile = getClass().getResource("/certs/rsa_self_signed.key").getFile();
+        String certFile = URLDecoder.decode(getClass().getResource("/certs/bad_format_cert.crt").getFile(),Charset.defaultCharset().name());
+        String keyFile = URLDecoder.decode(getClass().getResource("/certs/rsa_self_signed.key").getFile(),Charset.defaultCharset().name());
 
         String cert = readFileToString(new File(certFile));
         String key = readFileToString(new File(keyFile));

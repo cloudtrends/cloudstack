@@ -85,14 +85,15 @@ public abstract class AbstractInvestigatorImpl extends AdapterBase implements In
         return hostIds;
     }
 
+    // Method only returns Status.Up, Status.Down and Status.Unknown
     protected Status testIpAddress(Long hostId, String testHostIp) {
         try {
             Answer pingTestAnswer = _agentMgr.send(hostId, new PingTestCommand(testHostIp));
             if (pingTestAnswer == null) {
                 if (s_logger.isDebugEnabled()) {
-                    s_logger.debug("host (" + testHostIp + ") returns null answer");
+                    s_logger.debug("host (" + testHostIp + ") returns Unknown (null) answer");
                 }
-                return null;
+                return Status.Unknown;
             }
 
             if (pingTestAnswer.getResult()) {
@@ -103,14 +104,20 @@ public abstract class AbstractInvestigatorImpl extends AdapterBase implements In
                 return Status.Up;
             } else {
                 if (s_logger.isDebugEnabled()) {
-                    s_logger.debug("host (" + testHostIp + ") cannot be pinged, returning null ('I don't know')");
+                    s_logger.debug("host (" + testHostIp + ") cannot be pinged, returning Unknown (I don't know) state");
                 }
-                return null;
+                return Status.Unknown;
             }
         } catch (AgentUnavailableException e) {
-            return null;
+            if (s_logger.isDebugEnabled()) {
+                s_logger.debug("host (" + testHostIp + "): " + e.getLocalizedMessage() + ", trapped AgentUnavailableException returning Unknown state");
+            }
+            return Status.Unknown;
         } catch (OperationTimedoutException e) {
-            return null;
+            if (s_logger.isDebugEnabled()) {
+                s_logger.debug("host (" + testHostIp + "): " + e.getLocalizedMessage() + ", trapped OperationTimedoutException returning Unknown state");
+            }
+            return Status.Unknown;
         }
     }
 }

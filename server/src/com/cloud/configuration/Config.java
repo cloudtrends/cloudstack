@@ -685,15 +685,6 @@ public enum Config {
             "/var/cloudstack/mnt",
             "The mount point on the Management Server for Secondary Storage.",
             null),
-//    UpgradeURL("Advanced", ManagementServer.class, String.class, "upgrade.url", "http://example.com:8080/client/agent/update.zip", "The upgrade URL is the URL of the management server that agents will connect to in order to automatically upgrade.", null),
-    SystemVMUseLocalStorage(
-            "Advanced",
-            ManagementServer.class,
-            Boolean.class,
-            "system.vm.use.local.storage",
-            "false",
-            "Indicates whether to use local storage pools or shared storage pools for system VMs.",
-            null, ConfigKey.Scope.Zone.toString()),
     SystemVMAutoReserveCapacity(
             "Advanced",
             ManagementServer.class,
@@ -724,7 +715,7 @@ public enum Config {
             String.class,
             "hypervisor.list",
             HypervisorType.Hyperv + "," + HypervisorType.KVM + "," + HypervisorType.XenServer + "," + HypervisorType.VMware + "," + HypervisorType.BareMetal + "," +
-                HypervisorType.Ovm + "," + HypervisorType.LXC,
+                HypervisorType.Ovm + "," + HypervisorType.LXC + "," + HypervisorType.Ovm3,
             "The list of hypervisors that this deployment will use.",
             "hypervisorList"),
     ManagementNetwork("Advanced", ManagementServer.class, String.class, "management.network.cidr", null, "The cidr of management server network", null),
@@ -1076,6 +1067,29 @@ public enum Config {
     OvmPublicNetwork("Hidden", ManagementServer.class, String.class, "ovm.public.network.device", null, "Specify the public bridge on host for public network", null),
     OvmPrivateNetwork("Hidden", ManagementServer.class, String.class, "ovm.private.network.device", null, "Specify the private bridge on host for private network", null),
     OvmGuestNetwork("Hidden", ManagementServer.class, String.class, "ovm.guest.network.device", null, "Specify the private bridge on host for private network", null),
+
+    // Ovm3
+    Ovm3PublicNetwork("Hidden", ManagementServer.class, String.class, "ovm3.public.network.device", null, "Specify the public bridge on host for public network", null),
+    Ovm3PrivateNetwork("Hidden", ManagementServer.class, String.class, "ovm3.private.network.device", null, "Specify the private bridge on host for private network", null),
+    Ovm3GuestNetwork("Hidden", ManagementServer.class, String.class, "ovm3.guest.network.device", null, "Specify the guest bridge on host for guest network", null),
+    Ovm3StorageNetwork("Hidden", ManagementServer.class, String.class, "ovm3.storage.network.device", null, "Specify the storage bridge on host for storage network", null),
+    Ovm3HeartBeatTimeout(
+            "Advanced",
+            ManagementServer.class,
+            Integer.class,
+            "ovm3.heartbeat.timeout",
+            "120",
+            "timeout used for primary storage check, upon timeout a panic is triggered.",
+            null),
+    Ovm3HeartBeatInterval(
+            "Advanced",
+            ManagementServer.class,
+            Integer.class,
+            "ovm3.heartbeat.interval",
+            "1",
+            "interval used to check primary storage availability.",
+            null),
+
 
     // XenServer
     XenServerPublicNetwork(
@@ -2002,16 +2016,6 @@ public enum Config {
     VMSnapshotCreateWait("Advanced", VMSnapshotManager.class, Integer.class, "vmsnapshot.create.wait", "1800", "In second, timeout for create vm snapshot", null),
 
     CloudDnsName("Advanced", ManagementServer.class, String.class, "cloud.dns.name", null, "DNS name of the cloud for the GSLB service", null),
-
-    BlacklistedRoutes(
-            "Advanced",
-            VpcManager.class,
-            String.class,
-            "blacklisted.routes",
-            null,
-            "Routes that are blacklisted, can not be used for Static Routes creation for the VPC Private Gateway",
-            "routes",
-            ConfigKey.Scope.Zone.toString()),
     InternalLbVmServiceOfferingId(
             "Advanced",
             ManagementServer.class,
@@ -2065,7 +2069,9 @@ public enum Config {
     PublishAsynJobEvent("Advanced", ManagementServer.class, Boolean.class, "publish.async.job.events", "true", "enable or disable publishing of usage events on the event bus", null),
 
     // StatsCollector
-    StatsOutPutGraphiteHost("Advanced", ManagementServer.class, String.class, "stats.output.uri", "", "URI to additionally send StatsCollector statistics to", null);
+    StatsOutPutGraphiteHost("Advanced", ManagementServer.class, String.class, "stats.output.uri", "", "URI to additionally send StatsCollector statistics to", null),
+
+    SSVMPSK("Hidden", ManagementServer.class, String.class, "upload.post.secret.key", "", "PSK with SSVM", null);
 
     private final String _category;
     private final Class<?> _componentClass;

@@ -125,7 +125,7 @@ class TestAdvancedZoneStoppedVM(cloudstackTestCase):
         testClient = super(TestAdvancedZoneStoppedVM, cls).getClsTestClient()
         cls.apiclient = testClient.getApiClient()
         cls.testdata = testClient.getParsedTestDataConfig()
-
+        cls.hypervisor = testClient.getHypervisorInfo()
         # Get Zone, Domain and templates
         cls.domain = get_domain(cls.apiclient)
         cls.zone = get_zone(cls.apiclient)
@@ -148,9 +148,13 @@ class TestAdvancedZoneStoppedVM(cloudstackTestCase):
             # Create 2 service offerings with different values for
             # for cpunumber, cpuspeed, and memory
 
-            cls.testdata["service_offering"]["cpunumber"] = "1"
-            cls.testdata["service_offering"]["cpuspeed"] = "128"
-            cls.testdata["service_offering"]["memory"] = "256"
+            cls.testdata["service_offering"]["cpunumber"] = 1
+            cls.testdata["service_offering"]["cpuspeed"] = 128
+            cls.testdata["service_offering"]["memory"] = 256
+
+            if cls.hypervisor.lower() == "hyperv":
+                cls.testdata["service_offering"]["cpuspeed"] = 1024
+                cls.testdata["service_offering"]["memory"] = 1024
 
             cls.service_offering = ServiceOffering.create(
                 cls.apiclient,
@@ -158,9 +162,7 @@ class TestAdvancedZoneStoppedVM(cloudstackTestCase):
             )
             cls._cleanup.append(cls.service_offering)
 
-            cls.testdata["service_offering"]["cpunumber"] = "2"
-            cls.testdata["service_offering"]["cpuspeed"] = "256"
-            cls.testdata["service_offering"]["memory"] = "512"
+            cls.testdata["service_offering"]["cpunumber"] = 2
 
             cls.service_offering_2 = ServiceOffering.create(
                 cls.apiclient,
@@ -236,7 +238,7 @@ class TestAdvancedZoneStoppedVM(cloudstackTestCase):
             raise Exception("Warning: Exception during cleanup : %s" % e)
         return
 
-    @attr(tags=["advanced", "basic"], required_hardware="False")
+    @attr(tags=["advanced", "basic"], required_hardware="True")
     def test_01_pt_deploy_vm_without_startvm(self):
         """ Positive test for stopped VM test path - T1
 
@@ -304,7 +306,7 @@ class TestAdvancedZoneStoppedVM(cloudstackTestCase):
             self.assertTrue(response[0], response[1])
         return
 
-    @attr(tags=["advanced", "basic"], required_hardware="False")
+    @attr(tags=["advanced", "basic"], required_hardware="True")
     def test_02_pt_deploy_vm_with_startvm_true(self):
         """ Positive test for stopped VM test path - T1 variant
 
@@ -373,7 +375,7 @@ class TestAdvancedZoneStoppedVM(cloudstackTestCase):
             self.assertTrue(response[0], response[1])
         return
 
-    @attr(tags=["advanced", "basic"], required_hardware="False")
+    @attr("simulator_only", tags=["advanced", "basic"], required_hardware="false")
     def test_03_pt_deploy_vm_with_startvm_false(self):
         """ Positive test for stopped VM test path - T2
 
@@ -415,7 +417,7 @@ class TestAdvancedZoneStoppedVM(cloudstackTestCase):
             self.assertTrue(response[0], response[1])
         return
 
-    @attr(tags=["advanced", "basic"], required_hardware="False")
+    @attr("simulator_only", tags=["advanced", "basic"], required_hardware="false")
     def test_04_pt_startvm_false_attach_disk(self):
         """ Positive test for stopped VM test path - T3 and variant, T9
 
@@ -554,7 +556,7 @@ class TestAdvancedZoneStoppedVM(cloudstackTestCase):
         )
         return
 
-    @attr(tags=["advanced", "basic"], required_hardware="False")
+    @attr("simulator_only", tags=["advanced", "basic"], required_hardware="false")
     def test_05_pt_startvm_false_attach_disk_change_SO(self):
         """ Positive test for stopped VM test path - T4
 
@@ -652,7 +654,7 @@ class TestAdvancedZoneStoppedVM(cloudstackTestCase):
         )
         return
 
-    @attr(tags=["advanced", "basic"], required_hardware="False")
+    @attr(tags=["advanced", "basic"], required_hardware="True")
     def test_06_pt_startvm_false_attach_iso(self):
         """ Positive test for stopped VM test path - T5
 
@@ -663,6 +665,10 @@ class TestAdvancedZoneStoppedVM(cloudstackTestCase):
         # 4.  Verify that ISO is attached to the VM
         """
 
+        if self.hypervisor.lower() in ['lxc']:
+            self.skipTest(
+                "feature is not supported in %s" %
+                self.hypervisor)
         # Create VM in account
         virtual_machine = VirtualMachine.create(
             self.userapiclient,
@@ -712,7 +718,7 @@ class TestAdvancedZoneStoppedVM(cloudstackTestCase):
         )
         return
 
-    @attr(tags=["advanced", "basic"], required_hardware="False")
+    @attr(tags=["advanced", "basic"], required_hardware="True")
     def test_07_pt_startvm_false_attach_iso_running_vm(self):
         """ Positive test for stopped VM test path - T5 variant
 
@@ -723,6 +729,11 @@ class TestAdvancedZoneStoppedVM(cloudstackTestCase):
         # 3.  Register an ISO and attach it to the VM
         # 4.  Verify that ISO is attached to the VM
         """
+
+        if self.hypervisor.lower() in ['lxc']:
+            self.skipTest(
+                "feature is not supported in %s" %
+                self.hypervisor)
 
         # Create VM in account
         virtual_machine = VirtualMachine.create(
@@ -780,7 +791,7 @@ class TestAdvancedZoneStoppedVM(cloudstackTestCase):
         )
         return
 
-    @attr(tags=["advanced", "basic"], required_hardware="False")
+    @attr(tags=["advanced", "basic"], required_hardware="True")
     def test_08_pt_startvm_false_password_enabled_template(self):
         """ Positive test for stopped VM test path - T10
 
@@ -790,6 +801,11 @@ class TestAdvancedZoneStoppedVM(cloudstackTestCase):
         # 4.  Start the VM, verify that it is in running state
         # 5.  Verify that new password is generated for the VM
         """
+
+        if self.hypervisor.lower() in ['lxc']:
+            self.skipTest(
+                "feature is not supported in %s" %
+                self.hypervisor)
         vm_for_template = VirtualMachine.create(
             self.userapiclient,
             self.testdata["small"],
@@ -888,7 +904,7 @@ class TestAdvancedZoneStoppedVM(cloudstackTestCase):
         )
         return
 
-    @attr(tags=["advanced", "basic"], required_hardware="False")
+    @attr("simulator_only", tags=["advanced", "basic"], required_hardware="false")
     def test_09_pt_destroy_stopped_vm(self):
         """ Positive test for stopped VM test path - T11
 
@@ -939,7 +955,7 @@ class TestAdvancedZoneStoppedVM(cloudstackTestCase):
         self.assertEqual(response[0], PASS, response[1])
         return
 
-    @attr(tags=["advanced", "basic"], required_hardware="False")
+    @attr("simulator_only", tags=["advanced", "basic"], required_hardware="false")
     def test_10_max_account_limit(self):
         """ Positive test for stopped VM test path - T12
 

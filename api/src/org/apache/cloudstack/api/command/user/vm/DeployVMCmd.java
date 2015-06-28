@@ -121,7 +121,7 @@ public class DeployVMCmd extends BaseAsyncCreateCustomIdCmd {
 
     @Parameter(name = ApiConstants.ROOT_DISK_SIZE,
             type = CommandType.LONG,
-            description = "Optional field to resize root disk on deploy. Only applies to template-based deployments. Analogous to details[0].rootdisksize, which takes precedence over this parameter if both are provided",
+            description = "Optional field to resize root disk on deploy. Value is in GB. Only applies to template-based deployments. Analogous to details[0].rootdisksize, which takes precedence over this parameter if both are provided",
             since = "4.4")
     private Long rootdisksize;
 
@@ -506,7 +506,7 @@ public class DeployVMCmd extends BaseAsyncCreateCustomIdCmd {
 
         try {
             if (minIops != null) {
-                lMinIops = Long.valueOf(minIops);
+                lMinIops = Long.parseLong(minIops);
             }
             else {
                 lMinIops = 0;
@@ -520,7 +520,7 @@ public class DeployVMCmd extends BaseAsyncCreateCustomIdCmd {
 
         try {
             if (maxIops != null) {
-                lMaxIops = Long.valueOf(maxIops);
+                lMaxIops = Long.parseLong(maxIops);
             }
             else {
                 lMaxIops = 0;

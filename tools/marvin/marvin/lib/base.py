@@ -118,7 +118,6 @@ class Account:
         if "userUUID" in services:
             cmd.userid = "-".join([services["userUUID"], random_gen()])
 
-
         if domainid:
             cmd.domainid = domainid
         account = apiclient.createAccount(cmd)
@@ -599,7 +598,7 @@ class VirtualMachine:
                 if hasattr(self, "projectid"):
                     projectid = self.projectid
                 vms = VirtualMachine.list(apiclient, projectid=projectid,
-				          id=self.id, listAll=True)
+                        id=self.id, listAll=True)
                 validationresult = validateList(vms)
                 if validationresult[0] == FAIL:
                     raise Exception("VM list validation failed: %s" % validationresult[2])
@@ -650,6 +649,21 @@ class VirtualMachine:
         if hostid:
             cmd.hostid = hostid
         apiclient.migrateVirtualMachine(cmd)
+
+    def migrate_vm_with_volume(self, apiclient, hostid=None, migrateto=None):
+        """migrate an Instance and its volumes"""
+        cmd = migrateVirtualMachineWithVolume.migrateVirtualMachineWithVolumeCmd()
+        cmd.virtualmachineid = self.id
+        if hostid:
+            cmd.hostid = hostid
+        if migrateto:
+            migrateto = []
+            for volume, pool in migrateto.items():
+                cmd.migrateto.append({
+                    'volume': volume,
+                    'pool': pool
+            })
+        apiclient.migrateVirtualMachineWithVolume(cmd)
 
     def attach_volume(self, apiclient, volume):
         """Attach volume to instance"""
@@ -792,7 +806,7 @@ class Volume:
 
     @classmethod
     def create(cls, apiclient, services, zoneid=None, account=None,
-               domainid=None, diskofferingid=None, projectid=None):
+               domainid=None, diskofferingid=None, projectid=None, size=None):
         """Create Volume"""
         cmd = createVolume.createVolumeCmd()
         cmd.name = "-".join([services["diskname"], random_gen()])
@@ -819,6 +833,10 @@ class Volume:
 
         if projectid:
             cmd.projectid = projectid
+
+        if size:
+            cmd.size = size
+
         return Volume(apiclient.createVolume(cmd).__dict__)
 
     @classmethod
@@ -857,6 +875,10 @@ class Volume:
         cmd.snapshotid = snapshot_id
         cmd.zoneid = services["zoneid"]
         cmd.size = services["size"]
+        if services["ispublic"]:
+            cmd.ispublic = services["ispublic"]
+        else:
+            cmd.ispublic = False
         if account:
             cmd.account = account
         else:
@@ -962,6 +984,7 @@ class Volume:
         [setattr(cmd, k, v) for k, v in kwargs.items()]
         return(apiclient.migrateVolume(cmd))
 
+
 class Snapshot:
     """Manage Snapshot Lifecycle
     """
@@ -1030,6 +1053,7 @@ class Snapshot:
         except Exception as e:
             return [FAIL, e]
 
+
 class Template:
     """Manage template life cycle"""
 
@@ -1086,7 +1110,7 @@ class Template:
     @classmethod
     def register(cls, apiclient, services, zoneid=None,
                  account=None, domainid=None, hypervisor=None,
-                 projectid=None):
+                 projectid=None, details=None):
         """Create template from URL"""
 
         # Create template from Virtual machine and Volume ID
@@ -1142,6 +1166,9 @@ class Template:
             cmd.projectid = projectid
         elif "projectid" in services:
             cmd.projectid = services["projectid"]
+
+        if details:
+            cmd.details = details
 
         # Register Template
         template = apiclient.registerTemplate(cmd)
@@ -1716,6 +1743,7 @@ class FireWallRule:
             cmd.listall = True
         return(apiclient.listFirewallRules(cmd))
 
+
 class Autoscale:
 
     """Manage Auto scale"""
@@ -1881,7 +1909,7 @@ class ServiceOffering:
         self.__dict__.update(items)
 
     @classmethod
-    def create(cls, apiclient, services, domainid=None, **kwargs):
+    def create(cls, apiclient, services, tags=None, domainid=None, **kwargs):
         """Create Service offering"""
         cmd = createServiceOffering.createServiceOfferingCmd()
         cmd.cpunumber = services["cpunumber"]
@@ -1897,9 +1925,6 @@ class ServiceOffering:
 
         if "issystem" in services:
             cmd.issystem = services['issystem']
-
-        if "tags" in services:
-            cmd.tags = services["tags"]
 
         if "hosttags" in services:
             cmd.hosttags = services["hosttags"]
@@ -1934,6 +1959,11 @@ class ServiceOffering:
         if domainid:
             cmd.domainid = domainid
 
+        if tags:
+            cmd.tags = tags
+        elif "tags" in services:
+            cmd.tags = services["tags"]
+
         [setattr(cmd, k, v) for k, v in kwargs.items()]
         return ServiceOffering(apiclient.createServiceOffering(cmd).__dict__)
 
@@ -1962,7 +1992,7 @@ class DiskOffering:
         self.__dict__.update(items)
 
     @classmethod
-    def create(cls, apiclient, services, custom=False, domainid=None):
+    def create(cls, apiclient, services, tags=None, custom=False, domainid=None):
         """Create Disk offering"""
         cmd = createDiskOffering.createDiskOfferingCmd()
         cmd.displaytext = services["displaytext"]
@@ -1975,6 +2005,11 @@ class DiskOffering:
         if domainid:
             cmd.domainid = domainid
 
+        if tags:
+            cmd.tags = tags
+        elif "tags" in services:
+            cmd.tags = services["tags"]
+
         if "storagetype" in services:
             cmd.storagetype = services["storagetype"]
 
@@ -1986,9 +2021,6 @@ class DiskOffering:
 
         if "miniops" in services:
             cmd.miniops = services["miniops"]
-
-        if "tags" in services:
-            cmd.tags = services["tags"]
 
         if "provisioningtype" in services:
             cmd.provisioningtype = services["provisioningtype"]
@@ -2125,6 +2157,7 @@ class SnapshotPolicy:
         if 'account' in kwargs.keys() and 'domainid' in kwargs.keys():
             cmd.listall = True
         return(apiclient.listSnapshotPolicies(cmd))
+
 
 class Hypervisor:
     """Manage Hypervisor"""
@@ -2339,6 +2372,14 @@ class Cluster:
             cmd.listall = True
         return(apiclient.listClusters(cmd))
 
+    @classmethod
+    def update(cls, apiclient, **kwargs):
+        """Update cluster information"""
+
+        cmd = updateCluster.updateClusterCmd()
+        [setattr(cmd, k, v) for k, v in kwargs.items()]
+        return(apiclient.updateCluster(cmd))
+
 
 class Host:
     """Manage Host life cycle"""
@@ -2477,10 +2518,39 @@ class Host:
     @classmethod
     def reconnect(cls, apiclient, **kwargs):
         """Reconnect the Host"""
-        
+
         cmd = reconnectHost.reconnectHostCmd()
         [setattr(cmd, k, v) for k, v in kwargs.items()]
         return(apiclient.reconnectHost(cmd))
+
+    @classmethod
+    def getState(cls, apiclient, hostid, state, resourcestate, timeout=600):
+        """List Host and check if its resource state is as expected
+        @returnValue - List[Result, Reason]
+                       1) Result - FAIL if there is any exception
+                       in the operation or Host state does not change
+                       to expected state in given time else PASS
+                       2) Reason - Reason for failure"""
+
+        returnValue = [FAIL, "VM state not trasited to %s,\
+                        operation timed out" % state]
+
+        while timeout > 0:
+            try:
+                hosts = Host.list(apiclient,
+                          id=hostid, listall=True)
+                validationresult = validateList(hosts)
+                if validationresult[0] == FAIL:
+                    raise Exception("Host list validation failed: %s" % validationresult[2])
+                elif str(hosts[0].state).lower().decode("string_escape") == str(state).lower() and str(hosts[0].resourcestate).lower().decode("string_escape") == str(resourcestate).lower():
+                    returnValue = [PASS, None]
+                    break
+            except Exception as e:
+                returnValue = [FAIL, e]
+                break
+            time.sleep(60)
+            timeout -= 60
+        return returnValue
 
 class StoragePool:
     """Manage Storage pools (Primary Storage)"""
@@ -2586,11 +2656,40 @@ class StoragePool:
         return(apiclient.findStoragePoolsForMigration(cmd))
 
     @classmethod
-    def update(cls,apiclient, **kwargs):
+    def update(cls, apiclient, **kwargs):
         """Update storage pool"""
-        cmd=updateStoragePool.updateStoragePoolCmd()
+        cmd = updateStoragePool.updateStoragePoolCmd()
         [setattr(cmd, k, v) for k, v in kwargs.items()]
         return apiclient.updateStoragePool(cmd)
+
+    @classmethod
+    def getState(cls, apiclient, poolid, state, timeout=600):
+        """List StoragePools and check if its  state is as expected
+        @returnValue - List[Result, Reason]
+                       1) Result - FAIL if there is any exception
+                       in the operation or pool state does not change
+                       to expected state in given time else PASS
+                       2) Reason - Reason for failure"""
+
+        returnValue = [FAIL, "VM state not trasited to %s,\
+                        operation timed out" % state]
+
+        while timeout > 0:
+            try:
+                pools = StoragePool.list(apiclient,
+                          id=poolid, listAll=True)
+                validationresult = validateList(pools)
+                if validationresult[0] == FAIL:
+                    raise Exception("Host list validation failed: %s" % validationresult[2])
+                elif str(pools[0].state).lower().decode("string_escape") == str(state).lower():
+                    returnValue = [PASS, None]
+                    break
+            except Exception as e:
+                returnValue = [FAIL, e]
+                break
+            time.sleep(60)
+            timeout -= 60
+        return returnValue
 
 class Network:
     """Manage Network pools"""
@@ -2995,7 +3094,6 @@ class Zone:
             cmd.listall = True
         return(apiclient.listZones(cmd))
 
-
 class Pod:
     """Manage Pod"""
 
@@ -3032,6 +3130,13 @@ class Pod:
             cmd.listall = True
         return apiclient.listPods(cmd)
 
+    @classmethod
+    def update(self, apiclient, **kwargs):
+        """Update the pod"""
+
+        cmd = updatePod.updatePodCmd()
+        [setattr(cmd, k, v) for k, v in kwargs.items()]
+        return apiclient.updatePod(cmd)
 
 class PublicIpRange:
     """Manage VlanIpRange"""
@@ -3040,7 +3145,7 @@ class PublicIpRange:
         self.__dict__.update(items)
 
     @classmethod
-    def create(cls, apiclient, services):
+    def create(cls, apiclient, services, account=None, domainid=None):
         """Create VlanIpRange"""
 
         cmd = createVlanIpRange.createVlanIpRangeCmd()
@@ -3053,6 +3158,11 @@ class PublicIpRange:
         if "podid" in services:
             cmd.podid = services["podid"]
         cmd.vlan = services["vlan"]
+
+        if account:
+            cmd.account = account
+        if domainid:
+            cmd.domainid = domainid
 
         return PublicIpRange(apiclient.createVlanIpRange(cmd).__dict__)
 
@@ -3610,12 +3720,15 @@ class Configurations:
     """Manage Configuration"""
 
     @classmethod
-    def update(cls, apiclient, name, value=None):
+    def update(cls, apiclient, name, value=None, zoneid=None):
         """Updates the specified configuration"""
 
         cmd = updateConfiguration.updateConfigurationCmd()
         cmd.name = name
         cmd.value = value
+
+        if zoneid:
+            cmd.zoneid = zoneid
         apiclient.updateConfiguration(cmd)
 
     @classmethod
@@ -4319,6 +4432,7 @@ class VmSnapshot:
     """Manage VM Snapshot life cycle"""
     def __init__(self, items):
         self.__dict__.update(items)
+
     @classmethod
     def create(cls, apiclient, vmid, snapshotmemory="false",
                name=None, description=None):
@@ -4754,4 +4868,30 @@ class Usage:
         [setattr(cmd, k, v) for k, v in kwargs.items()]
         return(apiclient.generateUsageRecords(cmd))
 
+class TrafficType:
+    """Manage different traffic types in the setup"""
 
+    def __init__(self, items):
+        self.__dict__.update(items)
+
+    @classmethod
+    def list(cls, apiclient, **kwargs):
+        """Lists traffic types"""
+
+        cmd = listTrafficTypes.listTrafficTypesCmd()
+        [setattr(cmd, k, v) for k, v in kwargs.items()]
+        return(apiclient.listTrafficTypes(cmd))
+
+class StorageNetworkIpRange:
+    """Manage Storage Network Ip Range"""
+
+    def __init__(self, items):
+        self.__dict__.update(items)
+
+    @classmethod
+    def list(cls, apiclient, **kwargs):
+        """Lists Storage Network IP Ranges"""
+
+        cmd = listStorageNetworkIpRange.listStorageNetworkIpRangeCmd()
+        [setattr(cmd, k, v) for k, v in kwargs.items()]
+        return(apiclient.listStorageNetworkIpRange(cmd))

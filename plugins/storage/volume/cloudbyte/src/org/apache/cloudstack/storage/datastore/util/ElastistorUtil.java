@@ -19,11 +19,21 @@
 
 package org.apache.cloudstack.storage.datastore.util;
 
-import java.net.ConnectException;
-import java.security.InvalidParameterException;
-import java.security.SecureRandom;
-import java.security.cert.X509Certificate;
-import java.util.HashMap;
+import com.cloud.agent.api.Answer;
+import com.cloud.utils.exception.CloudRuntimeException;
+import com.google.gson.Gson;
+import com.google.gson.annotations.SerializedName;
+import com.sun.jersey.api.client.Client;
+import com.sun.jersey.api.client.ClientResponse;
+import com.sun.jersey.api.client.WebResource;
+import com.sun.jersey.api.client.config.ClientConfig;
+import com.sun.jersey.api.client.config.DefaultClientConfig;
+import com.sun.jersey.core.util.MultivaluedMapImpl;
+import org.apache.cloudstack.framework.config.dao.ConfigurationDao;
+import org.apache.cloudstack.utils.security.SSLUtils;
+import org.apache.cloudstack.utils.security.SecureSSLSocketFactory;
+import org.apache.http.auth.InvalidCredentialsException;
+import org.apache.log4j.Logger;
 
 import javax.naming.ServiceUnavailableException;
 import javax.net.ssl.HostnameVerifier;
@@ -36,24 +46,11 @@ import javax.net.ssl.X509TrustManager;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.MultivaluedMap;
 import javax.ws.rs.core.UriBuilder;
-
-import org.apache.http.auth.InvalidCredentialsException;
-import org.apache.log4j.Logger;
-import org.apache.cloudstack.utils.security.SSLUtils;
-
-import com.google.gson.Gson;
-import com.google.gson.annotations.SerializedName;
-import com.sun.jersey.api.client.Client;
-import com.sun.jersey.api.client.ClientResponse;
-import com.sun.jersey.api.client.WebResource;
-import com.sun.jersey.api.client.config.ClientConfig;
-import com.sun.jersey.api.client.config.DefaultClientConfig;
-import com.sun.jersey.core.util.MultivaluedMapImpl;
-
-import org.apache.cloudstack.framework.config.dao.ConfigurationDao;
-
-import com.cloud.agent.api.Answer;
-import com.cloud.utils.exception.CloudRuntimeException;
+import java.net.ConnectException;
+import java.security.InvalidParameterException;
+import java.security.SecureRandom;
+import java.security.cert.X509Certificate;
+import java.util.HashMap;
 
 public class ElastistorUtil {
 
@@ -1098,7 +1095,7 @@ public class ElastistorUtil {
                 try {
                     SSLContext sc = SSLUtils.getSSLContext();
                     sc.init(null, trustAllCerts, new SecureRandom());
-                    HttpsURLConnection.setDefaultSSLSocketFactory(sc.getSocketFactory());
+                    HttpsURLConnection.setDefaultSSLSocketFactory(new SecureSSLSocketFactory(sc));
                     HttpsURLConnection.setDefaultHostnameVerifier(hv);
                 } catch (Exception e) {
                     ;
@@ -2489,12 +2486,12 @@ public class ElastistorUtil {
      // update the TSM storage
      public static UpdateTsmStorageCmdResponse updateElastistorTsmStorage(String capacityBytes,String uuid) throws Throwable{
 
-         Long size = (Long.valueOf(capacityBytes)/(1024 * 1024 * 1024));
+         Long size = (Long.parseLong(capacityBytes)/(1024 * 1024 * 1024));
 
          String quotasize = null;
 
          if(size > 1024){
-            quotasize = (String.valueOf(Long.valueOf(capacityBytes)/(1024)) + "T");
+            quotasize = (String.valueOf(Long.parseLong(capacityBytes)/(1024)) + "T");
          }else{
             quotasize = String.valueOf(quotasize) + "G";
          }
@@ -2567,7 +2564,7 @@ public class ElastistorUtil {
 
          s_logger.info("elastistor tsm IOPS is updating to " + capacityIOPs);
          UpdateTsmCmd updateTsmCmd = new UpdateTsmCmd();
-         String throughput = String.valueOf(Long.valueOf(capacityIOPs)*4);
+         String throughput = String.valueOf(Long.parseLong(capacityIOPs)*4);
 
          updateTsmCmd.putCommandParameter("id", uuid);
          updateTsmCmd.putCommandParameter("iops", capacityIOPs);

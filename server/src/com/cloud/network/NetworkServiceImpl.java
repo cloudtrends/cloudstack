@@ -1248,7 +1248,7 @@ public class NetworkServiceImpl extends ManagerBase implements  NetworkService {
             if (!_accountMgr.isRootAdmin(caller.getId()) && cidr != null) {
 
                 String[] cidrPair = cidr.split("\\/");
-                int cidrSize = Integer.valueOf(cidrPair[1]);
+                int cidrSize = Integer.parseInt(cidrPair[1]);
 
                 if (cidrSize < _cidrLimit) {
                     throw new InvalidParameterValueException("Cidr size can't be less than " + _cidrLimit);
@@ -2806,7 +2806,7 @@ public class NetworkServiceImpl extends ManagerBase implements  NetworkService {
         String startvnet = vnetList.get(0);
         String endvnet = "";
         for (i = 0; i < vnetList.size() - 1; i++) {
-            if (Integer.valueOf(vnetList.get(i + 1)) - Integer.valueOf(vnetList.get(i)) > 1) {
+            if (Integer.parseInt(vnetList.get(i + 1)) - Integer.parseInt(vnetList.get(i)) > 1) {
                 endvnet = vnetList.get(i);
                 vnetRange = vnetRange + startvnet + "-" + endvnet + ",";
                 startvnet = vnetList.get(i + 1);
@@ -3127,7 +3127,7 @@ public class NetworkServiceImpl extends ManagerBase implements  NetworkService {
                 if (i != (guestVlanMaps.size() - 1)) {
                     List<Integer> vlanTokens2 = getVlanFromRange(guestVlanMaps.get(i + 1).getGuestVlanRange());
                     // Range extends 2 vlan ranges, both to the right and left
-                    if (endVlan == (vlanTokens2.get(0).intValue() - 1) & guestVlanMaps.get(i + 1).getAccountId() == vlanOwnerId) {
+                    if (endVlan == (vlanTokens2.get(0).intValue() - 1) && guestVlanMaps.get(i + 1).getAccountId() == vlanOwnerId) {
                         _datacneterVnet.releaseDedicatedGuestVlans(guestVlanMaps.get(i + 1).getId());
                         _accountGuestVlanMapDao.remove(guestVlanMaps.get(i + 1).getId());
                         updatedVlanRange = vlanTokens1.get(0).intValue() + "-" + vlanTokens2.get(1).intValue();
@@ -3152,7 +3152,7 @@ public class NetworkServiceImpl extends ManagerBase implements  NetworkService {
         // For every guest vlan set the corresponding account guest vlan map id
         List<Integer> finaVlanTokens = getVlanFromRange(accountGuestVlanMapVO.getGuestVlanRange());
         for (int i = finaVlanTokens.get(0).intValue(); i <= finaVlanTokens.get(1).intValue(); i++) {
-            List<DataCenterVnetVO> dataCenterVnet = _datacneterVnet.findVnet(physicalNetwork.getDataCenterId(), physicalNetworkId, ((Integer)i).toString());
+            List<DataCenterVnetVO> dataCenterVnet = _datacneterVnet.findVnet(physicalNetwork.getDataCenterId(), physicalNetworkId, Integer.toString(i));
             dataCenterVnet.get(0).setAccountGuestVlanMapId(accountGuestVlanMapVO.getId());
             _datacneterVnet.update(dataCenterVnet.get(0).getId(), dataCenterVnet.get(0));
         }
@@ -3584,7 +3584,7 @@ public class NetworkServiceImpl extends ManagerBase implements  NetworkService {
     @DB
     @ActionEvent(eventType = EventTypes.EVENT_TRAFFIC_TYPE_CREATE, eventDescription = "Creating Physical Network TrafficType", create = true)
     public PhysicalNetworkTrafficType addTrafficTypeToPhysicalNetwork(Long physicalNetworkId, String trafficTypeStr, String isolationMethod, String xenLabel, String kvmLabel, String vmwareLabel,
-            String simulatorLabel, String vlan, String hypervLabel) {
+            String simulatorLabel, String vlan, String hypervLabel, String ovm3Label) {
 
         // verify input parameters
         PhysicalNetworkVO network = _physicalNetworkDao.findById(physicalNetworkId);
@@ -3636,7 +3636,7 @@ public class NetworkServiceImpl extends ManagerBase implements  NetworkService {
                 xenLabel = getDefaultXenNetworkLabel(trafficType);
             }
             PhysicalNetworkTrafficTypeVO pNetworktrafficType = new PhysicalNetworkTrafficTypeVO(physicalNetworkId, trafficType, xenLabel, kvmLabel, vmwareLabel, simulatorLabel,
-                    vlan, hypervLabel);
+                    vlan, hypervLabel, ovm3Label);
             pNetworktrafficType = _pNTrafficTypeDao.persist(pNetworktrafficType);
 
             // For public traffic, get isolation method of physical network and update the public network accordingly
@@ -3696,7 +3696,7 @@ public class NetworkServiceImpl extends ManagerBase implements  NetworkService {
 
     @Override
     @ActionEvent(eventType = EventTypes.EVENT_TRAFFIC_TYPE_UPDATE, eventDescription = "Updating physical network TrafficType", async = true)
-    public PhysicalNetworkTrafficType updatePhysicalNetworkTrafficType(Long id, String xenLabel, String kvmLabel, String vmwareLabel, String hypervLabel) {
+    public PhysicalNetworkTrafficType updatePhysicalNetworkTrafficType(Long id, String xenLabel, String kvmLabel, String vmwareLabel, String hypervLabel, String ovm3Label) {
 
         PhysicalNetworkTrafficTypeVO trafficType = _pNTrafficTypeDao.findById(id);
 

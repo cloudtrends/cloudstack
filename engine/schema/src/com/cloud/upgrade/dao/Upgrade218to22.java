@@ -1267,8 +1267,8 @@ public class Upgrade218to22 implements DbUpgrade {
                             conn.prepareStatement("INSERT INTO firewall_rules (id, ip_address_id, start_port, end_port, state, protocol, purpose, account_id, domain_id, network_id, xid, is_static_nat, created) VALUES (?,    ?,      ?,      ?,      'Active',        ?,     'PortForwarding',       ?,      ?,      ?,      ?,       0,     now())");
                         pstmt.setLong(1, id);
                         pstmt.setInt(2, ipAddressId);
-                        pstmt.setInt(3, Integer.valueOf(sourcePort.trim()));
-                        pstmt.setInt(4, Integer.valueOf(sourcePort.trim()));
+                        pstmt.setInt(3, Integer.parseInt(sourcePort.trim()));
+                        pstmt.setInt(4, Integer.parseInt(sourcePort.trim()));
                         pstmt.setString(5, protocol);
                         pstmt.setLong(6, accountId);
                         pstmt.setLong(7, domainId);
@@ -1286,8 +1286,8 @@ public class Upgrade218to22 implements DbUpgrade {
                         pstmt.setLong(1, id);
                         pstmt.setLong(2, instanceId);
                         pstmt.setString(3, privateIp);
-                        pstmt.setInt(4, Integer.valueOf(privatePort.trim()));
-                        pstmt.setInt(5, Integer.valueOf(privatePort.trim()));
+                        pstmt.setInt(4, Integer.parseInt(privatePort.trim()));
+                        pstmt.setInt(5, Integer.parseInt(privatePort.trim()));
                         pstmt.executeUpdate();
                         pstmt.close();
                         s_logger.trace("port_forwarding_rules table is updated");
@@ -1372,8 +1372,8 @@ public class Upgrade218to22 implements DbUpgrade {
                         conn.prepareStatement("INSERT INTO firewall_rules (id, ip_address_id, start_port, end_port, state, protocol, purpose, account_id, domain_id, network_id, xid, is_static_nat, created) VALUES (?,    ?,      ?,      ?,      'Active',        ?,     'LoadBalancing',       ?,      ?,      ?,      ?,       0,       now())");
                     pstmt.setLong(1, newLbId);
                     pstmt.setInt(2, ipAddressId);
-                    pstmt.setInt(3, Integer.valueOf(sourcePort));
-                    pstmt.setInt(4, Integer.valueOf(sourcePort));
+                    pstmt.setInt(3, Integer.parseInt(sourcePort));
+                    pstmt.setInt(4, Integer.parseInt(sourcePort));
                     pstmt.setString(5, "tcp");
                     pstmt.setLong(6, accountId);
                     pstmt.setLong(7, domainId);
@@ -1388,8 +1388,8 @@ public class Upgrade218to22 implements DbUpgrade {
                     pstmt = conn.prepareStatement("INSERT INTO load_balancing_rules VALUES (?,      ?,      NULL,      ?,       ?,      ?)");
                     pstmt.setLong(1, newLbId);
                     pstmt.setString(2, name);
-                    pstmt.setInt(3, Integer.valueOf(destPort));
-                    pstmt.setInt(4, Integer.valueOf(destPort));
+                    pstmt.setInt(3, Integer.parseInt(destPort));
+                    pstmt.setInt(4, Integer.parseInt(destPort));
                     pstmt.setString(5, algorithm);
                     pstmt.executeUpdate();
                     pstmt.close();

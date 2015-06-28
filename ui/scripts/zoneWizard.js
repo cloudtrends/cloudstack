@@ -91,6 +91,9 @@
             case 'LXC':
                 hypervisorAttr = 'lxcnetworklabel';
                 break;
+            case 'Ovm3':
+                hypervisorAttr = 'ovm3networklabel';
+                break;
         }
 
         trafficLabelStr = trafficLabel ? '&' + hypervisorAttr + '=' + trafficLabel : '';
@@ -385,7 +388,10 @@
             },
 
             addPrimaryStorage: function(args) {
-                return args.data.localstorageenabled != 'on';
+                if(args.data.localstorageenabled == 'on' && args.data.localstorageenabledforsystemvm == 'on') {
+                    return false; //skip step only when both localstorage and localstorage for system vm are checked
+                }
+                return true;
             }
         },
 
@@ -468,7 +474,7 @@
                         desc: 'message.tooltip.internal.dns.2',
                         validation: {
                             ipv4: true
-                        },
+                        }
                     },
                     hypervisor: {
                         label: 'label.hypervisor',
@@ -494,6 +500,7 @@
                                         nonSupportedHypervisors["BareMetal"] = 1;
                                         nonSupportedHypervisors["Hyperv"] = 1;
                                         nonSupportedHypervisors["Ovm"] = 1;
+                                        nonSupportedHypervisors["Ovm3"] = 1;
                                     }
 
                                     if (args.context.zones[0]['network-model'] == "Advanced") { //CLOUDSTACK-7681: UI > zone wizard > Advanced zone > hypervisor => do not support BareMetal                                    
@@ -685,23 +692,15 @@
                         label: 'label.local.storage.enabled',
                         isBoolean: true,
                         onChange: function(args) {
-                            var $checkbox = args.$checkbox;
 
-                            if ($checkbox.is(':checked')) {
-                                cloudStack.dialog.confirm({
-                                    message: 'message.zoneWizard.enable.local.storage',
-                                    action: function() {
-                                        $checkbox.attr('checked', true);
-                                    },
-                                    cancelAction: function() {
-                                        $checkbox.attr('checked', false);
-                                    }
-                                });
+                        }
+                    },
 
-                                return false;
-                            }
+                    localstorageenabledforsystemvm: {
+                        label: 'label.local.storage.enabled.system.vms',
+                        isBoolean: true,
+                        onChange: function(args) {
 
-                            return true;
                         }
                     }
                 }
@@ -1006,6 +1005,13 @@
                                         $vsmFields.css('display', 'none');
                                     }
                                     //$("#cluster_name_label", $dialogAddCluster).text("vCenter Cluster:");
+                                } else if ($(this).val() == "Ovm3") {
+                                    $form.find('.form-item[rel=ovm3pool]').css('display', 'inline-block');
+                                    $form.find('.form-item[rel=ovm3pool]').find('input[type=checkbox]').removeAttr('checked');
+
+                                    $form.find('.form-item[rel=ovm3cluster]').css('display', 'inline-block');
+                                    $form.find('.form-item[rel=ovm3cluster]').find('input[type=checkbox]').removeAttr('checked');
+                                    $form.find('[rel=ovm3vip]').css('display', 'block');
                                 } else {
                                     //$('li[input_group="vmware"]', $dialogAddCluster).hide();
 
@@ -1276,6 +1282,14 @@
                         //$('li[input_group="Ovm"]', $dialogAddHost).hide();
                         $form.find('[rel=agentUsername]').hide();
                         $form.find('[rel=agentPassword]').hide();
+
+                        //$('li[input_group="Ovm3"]', $dialogAddHost).hide();
+                        $form.find('.form-item[rel=agentUsername]').hide();
+                        $form.find('.form-item[rel=agentPassword]').hide();
+                        $form.find('.form-item[rel=agentPort]').hide();
+                        $form.find('.form-item[rel=ovm3vip]').hide();
+                        $form.find('.form-item[rel=ovm3pool]').hide();
+                        $form.find('.form-item[rel=ovm3cluster]').hide();
                     } else if (selectedClusterObj.hypervisortype == "BareMetal") {
                         //$('li[input_group="general"]', $dialogAddHost).show();
                         $form.find('[rel=hostname]').css('display', 'block');
@@ -1294,6 +1308,14 @@
                         //$('li[input_group="Ovm"]', $dialogAddHost).hide();
                         $form.find('[rel=agentUsername]').hide();
                         $form.find('[rel=agentPassword]').hide();
+
+                        //$('li[input_group="Ovm3"]', $dialogAddHost).hide();
+                        $form.find('.form-item[rel=agentUsername]').hide();
+                        $form.find('.form-item[rel=agentPassword]').hide();
+                        $form.find('.form-item[rel=agentPort]').hide();
+                        $form.find('.form-item[rel=ovm3vip]').hide();
+                        $form.find('.form-item[rel=ovm3pool]').hide();
+                        $form.find('.form-item[rel=ovm3cluster]').hide();
                     } else if (selectedClusterObj.hypervisortype == "Ovm") {
                         //$('li[input_group="general"]', $dialogAddHost).show();
                         $form.find('[rel=hostname]').css('display', 'block');
@@ -1313,6 +1335,36 @@
                         $form.find('[rel=agentUsername]').css('display', 'block');
                         $form.find('[rel=agentUsername]').find('input').val("oracle");
                         $form.find('[rel=agentPassword]').css('display', 'block');
+
+                        //$('li[input_group="Ovm3"]', $dialogAddHost).hide();
+                        $form.find('.form-item[rel=agentPort]').hide();
+                        $form.find('.form-item[rel=ovm3vip]').hide();
+                        $form.find('.form-item[rel=ovm3pool]').hide();
+                        $form.find('.form-item[rel=ovm3cluster]').hide();
+                   } else if (selectedClusterObj.hypervisortype == "Ovm3") {
+                        //$('li[input_group="general"]', $dialogAddHost).show();
+                        $form.find('.form-item[rel=hostname]').css('display', 'inline-block');
+                        $form.find('.form-item[rel=username]').css('display', 'inline-block');
+                        $form.find('.form-item[rel=password]').css('display', 'inline-block');
+
+                        //$('li[input_group="vmware"]', $dialogAddHost).hide();
+                        $form.find('.form-item[rel=vcenterHost]').hide();
+
+                        //$('li[input_group="baremetal"]', $dialogAddHost).hide();
+                        $form.find('.form-item[rel=baremetalCpuCores]').hide();
+                        $form.find('.form-item[rel=baremetalCpu]').hide();
+                        $form.find('.form-item[rel=baremetalMemory]').hide();
+                        $form.find('.form-item[rel=baremetalMAC]').hide();
+
+                         //$('li[input_group="Ovm3"]', $dialogAddHost).show();
+                        $form.find('.form-item[rel=agentUsername]').css('display', 'inline-block');
+                        $form.find('.form-item[rel=agentUsername]').find('input').val("oracle");
+                        $form.find('.form-item[rel=agentPassword]').css('display', 'inline-block');
+                        $form.find('.form-item[rel=agentPort]').css('display', 'inline-block');
+                        $form.find('.form-item[rel=agentPort]').find('input').val("8899");
+                        $form.find('.form-item[rel=ovm3vip]').css('display', 'inline-block');
+                        $form.find('.form-item[rel=ovm3pool]').css('display', 'inline-block');
+                        $form.find('.form-item[rel=ovm3cluster]').css('display', 'inline-block');
                     } else {
                         //$('li[input_group="general"]', $dialogAddHost).show();
                         $form.find('[rel=hostname]').css('display', 'block');
@@ -1331,6 +1383,11 @@
                         //$('li[input_group="Ovm"]', $dialogAddHost).hide();
                         $form.find('[rel=agentUsername]').hide();
                         $form.find('[rel=agentPassword]').hide();
+                        //$('li[input_group="Ovm3"]', $dialogAddHost).hide();
+                        $form.find('.form-item[rel=agentPort]').hide();
+                        $form.find('.form-item[rel=ovm3vip]').hide();
+                        $form.find('.form-item[rel=ovm3pool]').hide();
+                        $form.find('.form-item[rel=ovm3cluster]').hide();
                     }
                 },
                 fields: {
@@ -1418,6 +1475,16 @@
                         isPassword: true
                     },
                     //input_group="OVM" ends here
+
+                    //input_group="OVM3" starts here
+                    agentPort: {
+                        label: 'label.agent.port',
+                        validation: {
+                            required: false
+                        },
+                        isHidden: true
+                    },
+                    //input_group="OVM3" ends here
 
                     //always appear (begin)
                     hosttags: {
@@ -1579,6 +1646,15 @@
                                 items.push({
                                     id: "SharedMountPoint",
                                     description: "SharedMountPoint"
+                                });
+                                args.response.success({
+                                    data: items
+                                });
+                            } else if (selectedClusterObj.hypervisortype == "Ovm3") {
+                                var items = [];
+                                items.push({
+                                    id: "nfs",
+                                    description: "nfs"
                                 });
                                 args.response.success({
                                     data: items
@@ -2265,8 +2341,8 @@
         },
 
         action: function(args) {      	
-        	var $wizard = args.wizard;
-        	        	
+            var $wizard = args.wizard;
+            var formData = args.data;
             var advZoneConfiguredVirtualRouterCount = 0; //for multiple physical networks in advanced zone. Each physical network has 2 virtual routers: regular one and VPC one.
 
             var success = args.response.success;
@@ -4441,29 +4517,52 @@
                         });
                     }
 
-                    $.ajax({
-                        url: createURL("addHost"),
-                        type: "POST",
-                        data: data,
-                        success: function(json) {
-                            stepFns.addPrimaryStorage({
-                                data: $.extend(args.data, {
-                                    returnedHost: json.addhostresponse.host[0]
-                                })
-                            });
-                        },
-                        error: function(XMLHttpResponse) {
-                            var errorMsg = parseXMLHttpResponse(XMLHttpResponse);
-                            error('addHost', errorMsg, {
-                                fn: 'addHost',
-                                args: args
-                            });
-                        }
-                    });
+                    var addHostAjax = function() {
+                        $.ajax({
+                            url: createURL("addHost"),
+                            type: "POST",
+                            data: data,
+                            success: function(json) {
+                                stepFns.addPrimaryStorage({
+                                    data: $.extend(args.data, {
+                                        returnedHost: json.addhostresponse.host[0]
+                                    })
+                                });
+                            },
+                            error: function(XMLHttpResponse) {
+                                var errorMsg = parseXMLHttpResponse(XMLHttpResponse);
+                                error('addHost', errorMsg, {
+                                    fn: 'addHost',
+                                    args: args
+                                });
+                            }
+                        });
+                    };
+
+                    if(args.data.zone.localstorageenabledforsystemvm == 'on') {
+                        $.ajax({
+                            url: createURL("updateConfiguration&name=system.vm.use.local.storage&value=true&zoneid=" + args.data.returnedZone.id),
+                            dataType: "json",
+                            success: function(json) {
+                                addHostAjax();
+                            },
+                            error: function(XMLHttpResponse) {
+                               var errorMsg = parseXMLHttpResponse(XMLHttpResponse);
+                               error('addHost', errorMsg, {
+                                   fn: 'addHost',
+                                   args: args
+                               });
+                            }
+                        });
+                    } else {
+                        addHostAjax();
+                    }
+
+
                 },
 
                 addPrimaryStorage: function(args) {
-                    if (args.data.zone.localstorageenabled == 'on') { //use local storage, don't need primary storage. So, skip this step.
+                    if (args.data.zone.localstorageenabled == 'on' && args.data.zone.localstorageenabledforsystemvm == 'on') { //use local storage, don't need primary storage. So, skip this step.
                         stepFns.addSecondaryStorage({
                             data: args.data
                         });

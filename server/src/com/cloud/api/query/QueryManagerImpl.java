@@ -814,7 +814,7 @@ public class QueryManagerImpl extends ManagerBase implements QueryService {
 
         String hypervisor = cmd.getHypervisor();
         Object name = cmd.getName();
-        Object state = cmd.getState();
+        String state = cmd.getState();
         Object zoneId = cmd.getZoneId();
         Object keyword = cmd.getKeyword();
         boolean isAdmin = false;
@@ -968,7 +968,11 @@ public class QueryManagerImpl extends ManagerBase implements QueryService {
         }
 
         if (state != null) {
-            sc.setParameters("stateEQ", state);
+            if (state.equalsIgnoreCase("present")) {
+                sc.setParameters("stateNIN", "Destroyed", "Expunging");
+            } else {
+                sc.setParameters("stateEQ", state);
+            }
         }
 
         if (hypervisor != null) {
@@ -982,10 +986,6 @@ public class QueryManagerImpl extends ManagerBase implements QueryService {
 
         if (zoneId != null) {
             sc.setParameters("dataCenterId", zoneId);
-
-            if (state == null) {
-                sc.setParameters("stateNEQ", "Destroyed");
-            }
         }
 
         if (affinityGroupId != null) {
@@ -3317,7 +3317,7 @@ public class QueryManagerImpl extends ManagerBase implements QueryService {
         if (showRemovedTmpl) {
             uniqueTmplPair = _templateJoinDao.searchIncludingRemovedAndCount(sc, searchFilter);
         } else {
-            sc.addAnd("templateState", SearchCriteria.Op.EQ, State.Active);
+            sc.addAnd("templateState", SearchCriteria.Op.IN, new State[]{State.Active, State.NotUploaded, State.UploadInProgress});
             uniqueTmplPair = _templateJoinDao.searchAndCount(sc, searchFilter);
         }
 

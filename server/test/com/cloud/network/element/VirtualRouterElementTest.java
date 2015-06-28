@@ -33,6 +33,7 @@ import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.InjectMocks;
+import org.mockito.Matchers;
 import org.mockito.Mock;
 import org.mockito.runners.MockitoJUnitRunner;
 
@@ -169,7 +170,7 @@ public class VirtualRouterElementTest {
     private RouterDeploymentDefinitionBuilder routerDeploymentDefinitionBuilder;
 
     @InjectMocks
-    private VpcVirtualNetworkApplianceManagerImpl _routerMgr ;
+    private VpcVirtualNetworkApplianceManagerImpl _routerMgr;
 
     @InjectMocks
     private VirtualRouterElement virtualRouterElement;
@@ -201,7 +202,7 @@ public class VirtualRouterElementTest {
         mockDAOs(testNetwork, testOffering);
         mockMgrs();
 
-        boolean done = virtualRouterElement.implement(testNetwork, testOffering, testDestination, testContext);
+        final boolean done = virtualRouterElement.implement(testNetwork, testOffering, testDestination, testContext);
         assertTrue("no cigar for network daddy",done);
     }
 
@@ -209,8 +210,8 @@ public class VirtualRouterElementTest {
     @Ignore("Ignore it until it's fixed in order not to brake the build")
     public void testPrepare() {
         virtualRouterElement._routerMgr = _routerMgr;
-        virtualRouterElement.routerDeploymentDefinitionBuilder = this.routerDeploymentDefinitionBuilder;
-        mockDAOs(testNetwork,testOffering);
+        virtualRouterElement.routerDeploymentDefinitionBuilder = routerDeploymentDefinitionBuilder;
+        mockDAOs(testNetwork, testOffering);
         mockMgrs();
 
         boolean done = false;
@@ -230,7 +231,7 @@ public class VirtualRouterElementTest {
      * @throws ConcurrentOperationException
      */
     private void mockMgrs() throws ConcurrentOperationException {
-        Service service = Service.Connectivity;
+        final Service service = Service.Connectivity;
         testNetwork.setState(Network.State.Implementing);
         testNetwork.setTrafficType(TrafficType.Guest);
         when(_networkMdl.isProviderEnabledInPhysicalNetwork(0L, "VirtualRouter")).thenReturn(true);
@@ -238,13 +239,13 @@ public class VirtualRouterElementTest {
         when(_networkMdl.isProviderForNetwork(Network.Provider.VirtualRouter, 0L)).thenReturn(true);
         when(testVMProfile.getType()).thenReturn(VirtualMachine.Type.User);
         when(testVMProfile.getHypervisorType()).thenReturn(HypervisorType.XenServer);
-        List<NetworkVO> networks = new ArrayList<NetworkVO>(1);
+        final List<NetworkVO> networks = new ArrayList<NetworkVO>(1);
         networks.add(testNetwork);
-        List<NetworkOfferingVO> offerings = new ArrayList<NetworkOfferingVO>(1);
+        final List<NetworkOfferingVO> offerings = new ArrayList<NetworkOfferingVO>(1);
         offerings.add(testOffering);
         doReturn(offerings).when(_networkModel).getSystemAccountNetworkOfferings(NetworkOffering.SystemControlNetwork);
         doReturn(networks).when(_networkMgr).setupNetwork(any(Account.class), any(NetworkOffering.class), any(DeploymentPlan.class), any(String.class), any(String.class), anyBoolean());
-     // being anti-social and testing my own case first
+        // being anti-social and testing my own case first
         doReturn(HypervisorType.XenServer).when(_resourceMgr).getDefaultHypervisor(anyLong());
         doReturn(new AccountVO()).when(_accountMgr).getAccount(testNetwork.getAccountId());
     }
@@ -252,7 +253,7 @@ public class VirtualRouterElementTest {
     /**
      * @param network
      */
-    private void mockDAOs(NetworkVO network, NetworkOfferingVO offering) {
+    private void mockDAOs(final NetworkVO network, final NetworkOfferingVO offering) {
         when(_networkDao.acquireInLockTable(network.getId(), NetworkOrchestrationService.NetworkLockTimeout.value())).thenReturn(network);
         when(_networksDao.acquireInLockTable(network.getId(), NetworkOrchestrationService.NetworkLockTimeout.value())).thenReturn(network);
         when(_physicalProviderDao.findByServiceProvider(0L, "VirtualRouter")).thenReturn(new PhysicalNetworkServiceProviderVO());
@@ -260,7 +261,7 @@ public class VirtualRouterElementTest {
         when(_networkOfferingDao.findById(0L)).thenReturn(offering);
         // watchit: (in this test) there can be only one
         when(_routerDao.getNextInSequence(Long.class, "id")).thenReturn(0L);
-        ServiceOfferingVO svcoff = new ServiceOfferingVO("name",
+        final ServiceOfferingVO svcoff = new ServiceOfferingVO("name",
                 /* cpu */ 1,
                 /* ramsize */ 1024*1024,
                 /* (clock?)speed */ 1024*1024*1024,
@@ -276,7 +277,8 @@ public class VirtualRouterElementTest {
                 VirtualMachine.Type.DomainRouter,
                 /* defaultUse */ false);
         when(_serviceOfferingDao.findById(0L)).thenReturn(svcoff);
-        DomainRouterVO router = new DomainRouterVO(/* id */ 1L,
+        when(_serviceOfferingDao.findByName(Matchers.anyString())).thenReturn(svcoff);
+        final DomainRouterVO router = new DomainRouterVO(/* id */ 1L,
                 /* serviceOfferingId */ 1L,
                 /* elementId */ 0L,
                 "name",
@@ -287,8 +289,6 @@ public class VirtualRouterElementTest {
                 /* accountId */ 1L,
                 /* userId */ 1L,
                 /* isRedundantRouter */ false,
-                /* priority */ 0,
-                /* isPriorityBumpUp */ false,
                 RedundantState.UNKNOWN,
                 /* haEnabled */ false,
                 /* stopPending */ false,

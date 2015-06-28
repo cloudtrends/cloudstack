@@ -721,24 +721,6 @@ class cloudAgentConfig(serviceCfgBase):
     def restore(self):
         return True
 
-
-class sudoersConfig(serviceCfgBase):
-    def __init__(self, syscfg):
-        super(sudoersConfig, self).__init__(syscfg)
-        self.serviceName = "sudoers"
-    def config(self):
-        try:
-            cfo = configFileOps("/etc/sudoers", self)
-            cfo.addEntry("cloud ALL ", "NOPASSWD : /bin/chmod, /bin/cp, /bin/mkdir, /bin/mount, /bin/umount, /usr/bin/keytool")
-            cfo.rmEntry("Defaults", "requiretty", " ")
-            cfo.save()
-            return True
-        except:
-            raise
-
-    def restore(self):
-        return True
-
 class firewallConfigServer(firewallConfigBase):
     def __init__(self, syscfg):
         super(firewallConfigServer, self).__init__(syscfg)
@@ -746,7 +728,7 @@ class firewallConfigServer(firewallConfigBase):
         if self.syscfg.env.svrMode == "myCloud":
             self.ports = "443 8080 8250 8443 9090".split()
         else:
-            self.ports = "8080 7080 8250 9090".split()
+            self.ports = "8080 8250 9090".split()
 
 class ubuntuFirewallConfigServer(firewallConfigServer):
     def allowPort(self, port):

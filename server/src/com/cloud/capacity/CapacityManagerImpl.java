@@ -573,11 +573,6 @@ public class CapacityManagerImpl extends ManagerBase implements CapacityManager,
             totalAllocatedSize += templateSize + _extraBytesPerVolume;
         }
 
-        // Add the size for the templateForVmCreation if its not already present
-        /*if ((templateForVmCreation != null) && !tmpinstalled) {
-
-        }*/
-
         return totalAllocatedSize;
     }
 
@@ -647,8 +642,18 @@ public class CapacityManagerImpl extends ManagerBase implements CapacityManager,
                     ramOvercommitRatio = Float.parseFloat(vmDetailRam.getValue());
                 }
                 ServiceOffering so = offeringsMap.get(vm.getServiceOfferingId());
-                reservedMemory += ((so.getRamSize() * 1024L * 1024L) / ramOvercommitRatio) * clusterRamOvercommitRatio;
-                reservedCpu += (so.getCpu() * so.getSpeed() / cpuOvercommitRatio) * clusterCpuOvercommitRatio;
+                Map<String, String> vmDetails = _userVmDetailsDao.listDetailsKeyPairs(vm.getId());
+                if (so.isDynamic()) {
+                    reservedMemory +=
+                        ((Integer.parseInt(vmDetails.get(UsageEventVO.DynamicParameters.memory.name())) * 1024L * 1024L) / ramOvercommitRatio) *
+                            clusterRamOvercommitRatio;
+                    reservedCpu +=
+                        ((Integer.parseInt(vmDetails.get(UsageEventVO.DynamicParameters.cpuNumber.name())) * Integer.parseInt(vmDetails.get(UsageEventVO.DynamicParameters.cpuSpeed.name()))) / cpuOvercommitRatio) *
+                            clusterCpuOvercommitRatio;
+                } else {
+                    reservedMemory += ((so.getRamSize() * 1024L * 1024L) / ramOvercommitRatio) * clusterRamOvercommitRatio;
+                    reservedCpu += (so.getCpu() * so.getSpeed() / cpuOvercommitRatio) * clusterCpuOvercommitRatio;
+                }
             } else {
                 // signal if not done already, that the VM has been stopped for skip.counting.hours,
                 // hence capacity will not be reserved anymore.
@@ -1057,7 +1062,7 @@ public class CapacityManagerImpl extends ManagerBase implements CapacityManager,
 
     @Override
     public boolean checkIfHostReachMaxGuestLimit(Host host) {
-        Long vmCount = _vmDao.countRunningByHostId(host.getId());
+        Long vmCount = _vmDao.countActiveByHostId(host.getId());
         HypervisorType hypervisorType = host.getHypervisorType();
         String hypervisorVersion = host.getHypervisorVersion();
         Long maxGuestLimit = _hypervisorCapabilitiesDao.getMaxGuestsLimit(hypervisorType, hypervisorVersion);

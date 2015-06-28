@@ -164,8 +164,8 @@ class Test42xBugsMgmtSvr(cloudstackTestCase):
         # "apply.allocation.algorithm.to.pods" back to false
         Configurations.update(
             self.apiClient,
-            "apply.allocation.algorithm.to.pods",
-            "false"
+            name="apply.allocation.algorithm.to.pods",
+            value="false"
         )
         # TODO:cleanup: Restart management server
         return
@@ -531,6 +531,12 @@ class Test42xBugsMgmtSvr(cloudstackTestCase):
         that VM creation is successful
 
          """
+
+        if not is_config_suitable(apiclient=self.apiClient,
+                                  name='apply.allocation.algorithm.to.pods',
+                                  value='true'):
+            self.skipTest('apply.allocation.algorithm.to.pods '
+                          'should be true. skipping')
 
         # register windows 2012 VM template as windows 8 template
         self.hypervisor = self.testClient.getHypervisorInfo()

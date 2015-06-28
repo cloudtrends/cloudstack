@@ -76,7 +76,7 @@ class TestUsage(cloudstackTestCase):
         cls.hypervisor = testClient.getHypervisorInfo()
         cls.apiclient = testClient.getApiClient()
         cls.testdata = testClient.getParsedTestDataConfig()
-
+        cls._cleanup = []
         # Get Zone, Domain and templates
         cls.domain = get_domain(cls.apiclient)
         cls.zone = get_zone(cls.apiclient, testClient.getZoneForTests())
@@ -84,13 +84,19 @@ class TestUsage(cloudstackTestCase):
         cls.mgtSvrDetails = cls.config.__dict__["mgtSvr"][0].__dict__
 
         isUsageJobRunning = cls.IsUsageJobRunning()
+        cls.usageJobNotRunning = False
         if not isUsageJobRunning:
-            raise unittest.SkipTest("Skipping, usage job is not running")
+            cls.usageJobNotRunning = True
+            return
 
         if cls.testdata["configurableData"][
                 "setUsageConfigurationThroughTestCase"]:
             cls.setUsageConfiguration()
             cls.RestartServers()
+        else:
+            currentMgtSvrTime = cls.getCurrentMgtSvrTime()
+            dateTimeSplit = currentMgtSvrTime.split("/")
+            cls.curDate = dateTimeSplit[0]
 
         cls.hypervisor = testClient.getHypervisorInfo()
 
@@ -98,7 +104,7 @@ class TestUsage(cloudstackTestCase):
             cls.apiclient,
             cls.zone.id,
             cls.testdata["ostype"])
-        cls._cleanup = []
+
 
         try:
             # If local storage is enabled, alter the offerings to use
@@ -184,6 +190,8 @@ class TestUsage(cloudstackTestCase):
         self.apiclient = self.testClient.getApiClient()
         self.dbclient = self.testClient.getDbConnection()
         self.cleanup = []
+        if self.usageJobNotRunning:
+            self.skipTest("Skipping test because usage job not running")
         # Create an account
         self.account = Account.create(
             self.apiclient,
@@ -420,7 +428,7 @@ class TestUsage(cloudstackTestCase):
             )
         return result
 
-    @attr(tags=["advanced"], required_hardware="true")
+    @attr(tags=["advanced"], required_hardware="True")
     def test_01_positive_tests_usage(self):
         """ Positive test for usage test path
 
@@ -2951,7 +2959,7 @@ class TestUsageDirectMeteringBasicZone(cloudstackTestCase):
             cls).getClsTestClient()
         cls.apiclient = testClient.getApiClient()
         cls.testdata = testClient.getParsedTestDataConfig()
-
+        cls._cleanup = []
         # Get Zone, Domain and templates
         cls.domain = get_domain(cls.apiclient)
         cls.zone = get_zone(cls.apiclient, testClient.getZoneForTests())
@@ -2959,19 +2967,25 @@ class TestUsageDirectMeteringBasicZone(cloudstackTestCase):
         cls.mgtSvrDetails = cls.config.__dict__["mgtSvr"][0].__dict__
 
         isUsageJobRunning = cls.IsUsageJobRunning()
+        cls.usageJobNotRunning = False
         if not isUsageJobRunning:
-            raise unittest.SkipTest("Skipping, usage job is not running")
+            cls.usageJobNotRunning = True
+            return
 
         if cls.testdata["configurableData"][
                 "setUsageConfigurationThroughTestCase"]:
             cls.setUsageConfiguration()
             cls.RestartServers()
+        else:
+            currentMgtSvrTime = cls.getCurrentMgtSvrTime()
+            dateTimeSplit = currentMgtSvrTime.split("/")
+            cls.curDate = dateTimeSplit[0]
 
         cls.template = get_template(
             cls.apiclient,
             cls.zone.id,
             cls.testdata["ostype"])
-        cls._cleanup = []
+
 
         try:
             # If local storage is enabled, alter the offerings to use
@@ -3017,6 +3031,8 @@ class TestUsageDirectMeteringBasicZone(cloudstackTestCase):
         self.apiclient = self.testClient.getApiClient()
         self.dbclient = self.testClient.getDbConnection()
         self.cleanup = []
+        if self.usageJobNotRunning:
+            self.skipTest("Skipping test because usage job not running")
         # Create an account
         self.account = Account.create(
             self.apiclient,

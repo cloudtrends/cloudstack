@@ -656,6 +656,9 @@
                                                                 description: this.path
                                                             });
                                                         });
+                                                        items.sort(function(a, b) {
+                                                            return a.description.localeCompare(b.description);
+                                                        });
                                                         args.response.success({
                                                             data: items
                                                         });
@@ -674,7 +677,7 @@
                                                 data: null
                                                 });
                                             }
-                                        },
+                                        }
                                     },
                                     account: {
                                         label: 'label.account',
@@ -830,6 +833,9 @@
                                                     });
                                                 }
                                             }
+                                            array1.sort(function(a, b) {
+                                                return a.description.localeCompare(b.description);
+                                            });
                                             args.response.success({
                                                 data: array1
                                             });
@@ -1684,7 +1690,23 @@
                                             'algorithm': {
                                                 label: 'label.algorithm',
                                                 select: function(args) {
-                                                    var data = getLBAlgorithms(args.context.networks[0]);
+                                                    var data = [{
+                                                            id: 'roundrobin',
+                                                            name: 'roundrobin',
+                                                            description: _l('label.lb.algorithm.roundrobin')
+                                                        }, {
+                                                            id: 'leastconn',
+                                                            name: 'leastconn',
+                                                            description: _l('label.lb.algorithm.leastconn')
+                                                        }, {
+                                                            id: 'source',
+                                                            name: 'source',
+                                                            description: _l('label.lb.algorithm.source')
+                                                        }];
+                                                    if (typeof args.context != 'undefined') {
+                                                        var lbAlgs = getLBAlgorithms(args.context.networks[0]);
+                                                        data = (lbAlgs.length == 0) ? data : lbAlgs;
+                                                    }
                                                     args.response.success({
                                                         data: data
                                                     });
@@ -3517,7 +3539,23 @@
                                                 label: 'label.algorithm',
                                                 isEditable: true,
                                                 select: function(args) {
-                                                    var data = getLBAlgorithms(args.context.networks[0]);
+                                                    var data = [{
+                                                            id: 'roundrobin',
+                                                            name: 'roundrobin',
+                                                            description: _l('label.lb.algorithm.roundrobin')
+                                                        }, {
+                                                            id: 'leastconn',
+                                                            name: 'leastconn',
+                                                            description: _l('label.lb.algorithm.leastconn')
+                                                        }, {
+                                                            id: 'source',
+                                                            name: 'source',
+                                                            description: _l('label.lb.algorithm.source')
+                                                        }];
+                                                    if (typeof args.context != 'undefined') {
+                                                        var lbAlgs = getLBAlgorithms(args.context.networks[0]);
+                                                        data = (lbAlgs.length == 0) ? data : lbAlgs;
+                                                    }
                                                     args.response.success({
                                                         data: data
                                                     });
@@ -5224,6 +5262,9 @@
                                                     });
                                                 }
                                             }
+                                            array1.sort(function(a, b) {
+                                                return a.description.localeCompare(b.description);
+                                            });
                                             args.response.success({
                                                 data: array1
                                             });
@@ -5508,19 +5549,66 @@
 
                             restart: {
                                 label: 'label.restart.vpc',
+                                createForm: {
+		                            title: 'label.restart.vpc',
+		                            desc: function(args) {
+		                                if (Boolean(args.context.vpc[0].redundantvpcrouter)) {
+		                                   return 'message.restart.vpc';
+		                               } else {
+		                                   return 'message.restart.vpc.remark';
+		                               }
+		                            },
+                                    
+		                            preFilter: function(args) {
+		                               var zoneObj;
+		                               $.ajax({
+		                                   url: createURL("listZones&id=" + args.context.vpc[0].zoneid),
+		                                   dataType: "json",
+		                                   async: false,
+		                                   success: function(json) {
+		                                       zoneObj = json.listzonesresponse.zone[0];
+		                                   }
+		                               });
+		                               
+		                               
+		                               args.$form.find('.form-item[rel=cleanup]').find('input').attr('checked', 'checked'); //checked
+		                               args.$form.find('.form-item[rel=cleanup]').css('display', 'inline-block'); //shown
+	                                   args.$form.find('.form-item[rel=makeredundant]').find('input').attr('checked', 'checked'); //checked
+	                                   args.$form.find('.form-item[rel=makeredundant]').css('display', 'inline-block'); //shown
+	                                   
+		                               if (Boolean(args.context.vpc[0].redundantvpcrouter)) {
+		                                   args.$form.find('.form-item[rel=makeredundant]').hide();
+		                               } else {
+		                                   args.$form.find('.form-item[rel=makeredundant]').show();
+		                               }
+		                           },
+		                           fields: {
+		                               cleanup: {
+		                                   label: 'label.clean.up',
+		                                   isBoolean: true
+		                               },
+		                               makeredundant: {
+		                                   label: 'label.make.redundant',
+		                                   isBoolean: true
+		                               }
+		                           }
+		                        },
                                 messages: {
                                     confirm: function(args) {
-                                        return 'message.restart.vpc';
+		                                return 'message.restart.vpc';
                                     },
                                     notification: function(args) {
                                         return 'label.restart.vpc';
                                     }
                                 },
+
                                 action: function(args) {
                                     $.ajax({
                                         url: createURL("restartVPC"),
                                         data: {
-                                            id: args.context.vpc[0].id
+                                            id: args.context.vpc[0].id,
+                                            cleanup: (args.data.cleanup == "on"),
+                                            makeredundant: (args.data.makeredundant == "on")
                                         },
                                         success: function(json) {
                                             var jid = json.restartvpcresponse.jobid;
@@ -5619,14 +5707,29 @@
                                     },
                                     ispersistent: {
                                         label: 'label.persistent',
-                                        converter: cloudStack.converters.toBooleanText
+                                        converter: function(booleanValue) {
+                                            if (booleanValue == true) {
+                                                return "Yes";
+                                            }
 
+                                            return "No";
+                                        }
+                                    },
+                                    redundantvpcrouter: {
+                                        label: 'label.redundant.vpc',
+                                        converter: function(booleanValue) {
+                                            if (booleanValue == true) {
+                                                return "Yes";
+                                            }
+
+                                            return "No";
+                                        }
                                     },
                                     restartrequired: {
                                         label: 'label.restart.required',
                                         converter: function(booleanValue) {
                                             if (booleanValue == true) {
-                                                return "<font color='red'>Yes</font>";
+                                                return "Yes";
                                             }
 
                                             return "No";
@@ -5697,7 +5800,7 @@
                                         label: 'label.redundant.router',
                                         converter: function(booleanValue) {
                                             if (booleanValue == true) {
-                                                return "<font color='red'>Yes</font>";
+                                                return "Yes";
                                             }
                                             return "No";
                                         }
@@ -5715,12 +5818,14 @@
                                         dataType: "json",
                                         async: true,
                                         success: function(json) {
-                                            var item = json.listroutersresponse.router[0];
+                                            for (var i = 0; i < json.listroutersresponse.router.length; i++) {
+                                                var item = json.listroutersresponse.router[i];
 
-                                            args.response.success({
-                                                actionFilter: cloudStack.sections.system.routerActionFilter,
-                                                data: item
-                                            });
+                                                args.response.success({
+                                                    actionFilter: cloudStack.sections.system.routerActionFilter,
+                                                    data: item
+                                                });
+                                            }
                                         }
                                     });
                                 }

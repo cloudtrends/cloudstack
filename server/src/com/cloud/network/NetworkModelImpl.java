@@ -19,6 +19,8 @@ package com.cloud.network;
 
 import java.math.BigInteger;
 import java.security.InvalidParameterException;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -32,6 +34,8 @@ import javax.ejb.Local;
 import javax.inject.Inject;
 import javax.naming.ConfigurationException;
 
+import com.cloud.utils.StringUtils;
+import org.apache.commons.codec.binary.Base64;
 import org.apache.log4j.Logger;
 
 import org.apache.cloudstack.acl.ControlledEntity.ACLType;
@@ -895,6 +899,25 @@ public class NetworkModelImpl extends ManagerBase implements NetworkModel {
     }
 
     @Override
+    public  boolean isSharedNetworkWithoutServices (long networkId) {
+
+        Network network = _networksDao.findById(networkId);
+
+        if (network != null && network.getGuestType() != GuestType.Shared) {
+            return false;
+        }
+
+        List<Service> services = listNetworkOfferingServices(network.getNetworkOfferingId());
+
+        if (services == null || services.isEmpty()) {
+            return true;
+        }
+
+        return false;
+    }
+
+
+    @Override
     public boolean areServicesSupportedByNetworkOffering(long networkOfferingId, Service... services) {
         return (_ntwkOfferingSrvcDao.areServicesSupportedByNetworkOffering(networkOfferingId, services));
     }
@@ -1226,6 +1249,9 @@ public class NetworkModelImpl extends ManagerBase implements NetworkModel {
                     case Hyperv:
                         label = mgmtTraffic.getHypervNetworkLabel();
                         break;
+                    case Ovm3:
+                        label = mgmtTraffic.getOvm3NetworkLabel();
+                        break;
                 }
                 return label;
             }
@@ -1257,6 +1283,9 @@ public class NetworkModelImpl extends ManagerBase implements NetworkModel {
                         break;
                     case Hyperv:
                         label = storageTraffic.getHypervNetworkLabel();
+                        break;
+                    case Ovm3:
+                        label = storageTraffic.getOvm3NetworkLabel();
                         break;
                 }
                 return label;
@@ -1592,8 +1621,12 @@ public class NetworkModelImpl extends ManagerBase implements NetworkModel {
 
         } else {
             if (!isNetworkAvailableInDomain(network.getId(), owner.getDomainId())) {
+                DomainVO ownerDomain = _domainDao.findById(owner.getDomainId());
+                if (ownerDomain == null) {
+                    throw new CloudRuntimeException("cannot check permission on account " + owner.getAccountName() + " whose domain does not exist");
+                }
                 throw new PermissionDeniedException("Shared network id=" + ((NetworkVO)network).getUuid() + " is not available in domain id=" +
-                    owner.getDomainId());
+                        ownerDomain.getUuid());
             }
         }
     }
@@ -1617,6 +1650,9 @@ public class NetworkModelImpl extends ManagerBase implements NetworkModel {
                         break;
                     case Hyperv:
                         label = publicTraffic.getHypervNetworkLabel();
+                        break;
+                    case Ovm3:
+                        label = publicTraffic.getOvm3NetworkLabel();
                         break;
                 }
                 return label;
@@ -1650,7 +1686,9 @@ public class NetworkModelImpl extends ManagerBase implements NetworkModel {
                     case Hyperv:
                         label = guestTraffic.getHypervNetworkLabel();
                         break;
-
+                    case Ovm3:
+                        label = guestTraffic.getOvm3NetworkLabel();
+                        break;
                 }
                 return label;
             }
@@ -2246,5 +2284,56 @@ public class NetworkModelImpl extends ManagerBase implements NetworkModel {
             InvalidParameterValueException ex = new InvalidParameterValueException("network with network id does not exist");
             throw ex;
         }
+    }
+
+    @Override
+    public List<String[]> generateVmData(String userData, String serviceOffering, String zoneName,
+                                         String vmName, long vmId, String publicKey, String password, Boolean isWindows) {
+        final List<String[]> vmData = new ArrayList<String[]>();
+
+        if (userData != null) {
+            vmData.add(new String[]{"userdata", "user-data", new String(Base64.decodeBase64(userData),StringUtils.getPreferredCharset())});
+        }
+        vmData.add(new String[]{"metadata", "service-offering", StringUtils.unicodeEscape(serviceOffering)});
+        vmData.add(new String[]{"metadata", "availability-zone", StringUtils.unicodeEscape(zoneName)});
+        vmData.add(new String[]{"metadata", "local-hostname", StringUtils.unicodeEscape(vmName)});
+        vmData.add(new String[]{"metadata", "instance-id", vmName});
+        vmData.add(new String[]{"metadata", "vm-id", String.valueOf(vmId)});
+        vmData.add(new String[]{"metadata", "public-keys", publicKey});
+
+        String cloudIdentifier = _configDao.getValue("cloud.identifier");
+        if (cloudIdentifier == null) {
+            cloudIdentifier = "";
+        } else {
+            cloudIdentifier = "CloudStack-{" + cloudIdentifier + "}";
+        }
+        vmData.add(new String[]{"metadata", "cloud-identifier", cloudIdentifier});
+
+        if (password != null && !password.isEmpty() && !password.equals("saved_password")) {
+
+            // Here we are calculating MD5 checksum to reduce the over head of calculating MD5 checksum
+            // in windows VM in password reset script.
+
+            if (isWindows) {
+                MessageDigest md5 = null;
+                try {
+                    md5 = MessageDigest.getInstance("MD5");
+                } catch (NoSuchAlgorithmException e) {
+                    s_logger.error("Unexpected exception " + e.getMessage(), e);
+                    throw new CloudRuntimeException("Unable to get MD5 MessageDigest", e);
+                }
+                md5.reset();
+                md5.update(password.getBytes(StringUtils.getPreferredCharset()));
+                byte[] digest = md5.digest();
+                BigInteger bigInt = new BigInteger(1, digest);
+                String hashtext = bigInt.toString(16);
+
+                vmData.add(new String[]{"password", "vm-password-md5checksum", hashtext});
+            }
+
+            vmData.add(new String[]{"password", "vm-password", password});
+        }
+
+        return vmData;
     }
 }

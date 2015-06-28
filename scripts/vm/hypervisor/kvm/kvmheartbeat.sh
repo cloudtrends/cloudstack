@@ -155,7 +155,10 @@ then
   exit 0
 elif [ "$cflag" == "1" ]
 then
-  reboot
+  /usr/bin/logger -t heartbeat "kvmheartbeat.sh rebooted system because it was unable to write the heartbeat to the storage."
+  sync &
+  sleep 5
+  echo b > /proc/sysrq-trigger
   exit $?
 else
   write_hbLog 

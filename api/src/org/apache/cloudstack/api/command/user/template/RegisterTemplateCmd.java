@@ -65,7 +65,7 @@ public class RegisterTemplateCmd extends BaseCmd {
     @Parameter(name = ApiConstants.FORMAT,
                type = CommandType.STRING,
                required = true,
-               description = "the format for the template. Possible values include QCOW2, RAW, and VHD.")
+               description = "the format for the template. Possible values include QCOW2, RAW, VHD and OVA.")
     private String format;
 
     @Parameter(name = ApiConstants.HYPERVISOR, type = CommandType.STRING, required = true, description = "the target hypervisor for the template")
@@ -129,7 +129,7 @@ public class RegisterTemplateCmd extends BaseCmd {
     @Parameter(name = ApiConstants.PROJECT_ID, type = CommandType.UUID, entityType = ProjectResponse.class, description = "Register template for the project")
     private Long projectId;
 
-    @Parameter(name = ApiConstants.DETAILS, type = CommandType.MAP, description = "Template details in key/value pairs.")
+    @Parameter(name = ApiConstants.DETAILS, type = CommandType.MAP, description = "Template details in key/value pairs using format details[i].keyname=keyvalue. Example: details[0].hypervisortoolsversion=xenserver61")
     protected Map details;
 
     @Parameter(name = ApiConstants.IS_DYNAMICALLY_SCALABLE,

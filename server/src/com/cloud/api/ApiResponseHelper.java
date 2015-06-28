@@ -408,7 +408,7 @@ public class ApiResponseHelper implements ResponseGenerator {
             populateAccount(resourceLimitResponse, limit.getOwnerId());
             populateDomain(resourceLimitResponse, accountTemp.getDomainId());
         }
-        resourceLimitResponse.setResourceType(Integer.valueOf(limit.getType().getOrdinal()).toString());
+        resourceLimitResponse.setResourceType(Integer.toString(limit.getType().getOrdinal()));
 
         if ((limit.getType() == ResourceType.primary_storage || limit.getType() == ResourceType.secondary_storage) && limit.getMax() >= 0) {
             resourceLimitResponse.setMax((long)Math.ceil((double)limit.getMax() / ResourceType.bytesToGiB));
@@ -434,7 +434,7 @@ public class ApiResponseHelper implements ResponseGenerator {
             populateDomain(resourceCountResponse, resourceCount.getOwnerId());
         }
 
-        resourceCountResponse.setResourceType(Integer.valueOf(resourceCount.getType().getOrdinal()).toString());
+        resourceCountResponse.setResourceType(Integer.toString(resourceCount.getType().getOrdinal()));
         resourceCountResponse.setResourceCount(resourceCount.getCount());
         resourceCountResponse.setObjectName("resourcecount");
         return resourceCountResponse;
@@ -472,7 +472,7 @@ public class ApiResponseHelper implements ResponseGenerator {
             snapshotResponse.setVolumeId(volume.getUuid());
             snapshotResponse.setVolumeName(volume.getName());
             snapshotResponse.setVolumeType(volume.getVolumeType().name());
-            DataCenter zone = ApiDBUtils.findZoneById(volume.getDeviceId());
+            DataCenter zone = ApiDBUtils.findZoneById(volume.getDataCenterId());
             if (zone != null) {
                 snapshotResponse.setZoneId(zone.getUuid());
             }
@@ -556,6 +556,11 @@ public class ApiResponseHelper implements ResponseGenerator {
                 vmSnapshotResponse.setParent(vmSnapshotParent.getUuid());
                 vmSnapshotResponse.setParentName(vmSnapshotParent.getDisplayName());
             }
+        }
+        Project project = ApiDBUtils.findProjectByProjectAccountId(vmSnapshot.getAccountId());
+        if (project != null) {
+            vmSnapshotResponse.setProjectId(project.getUuid());
+            vmSnapshotResponse.setProjectName(project.getName());
         }
         vmSnapshotResponse.setCurrent(vmSnapshot.getCurrent());
         vmSnapshotResponse.setType(vmSnapshot.getType().toString());
@@ -2397,7 +2402,7 @@ public class ApiResponseHelper implements ResponseGenerator {
         for (Network.Provider serviceProvider : serviceProviders) {
             // return only Virtual Router/JuniperSRX/CiscoVnmc as a provider for the firewall
             if (service == Service.Firewall
-                    && !(serviceProvider == Provider.VirtualRouter || serviceProvider == Provider.JuniperSRX || serviceProvider == Provider.CiscoVnmc || serviceProvider == Provider.PaloAlto || serviceProvider == Provider.NuageVsp)) {
+                    && !(serviceProvider == Provider.VirtualRouter || serviceProvider == Provider.JuniperSRX || serviceProvider == Provider.CiscoVnmc || serviceProvider == Provider.PaloAlto || serviceProvider == Provider.NuageVsp || serviceProvider == Provider.BigSwitchBcf)) {
                 continue;
             }
 
@@ -2699,6 +2704,7 @@ public class ApiResponseHelper implements ResponseGenerator {
         response.setNetworkDomain(vpc.getNetworkDomain());
         response.setForDisplay(vpc.isDisplay());
         response.setUsesDistributedRouter(vpc.usesDistributedRouter());
+        response.setRedundantRouter(vpc.isRedundant());
         response.setRegionLevelVpc(vpc.isRegionLevelVpc());
 
         Map<Service, Set<Provider>> serviceProviderMap = ApiDBUtils.listVpcOffServices(vpc.getVpcOfferingId());

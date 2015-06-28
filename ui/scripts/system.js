@@ -139,6 +139,8 @@
         trafficType.lxcnetworklabel = _l( 'label.network.label.display.for.blank.value');
         if (trafficType.hypervnetworklabel == null || trafficType.hypervnetworklabel == 0)
         trafficType.hypervnetworklabel = _l( 'label.network.label.display.for.blank.value');
+        if (trafficType.ovm3networklabel == null || trafficType.ovm3networklabel == 0)
+        trafficType.ovm3networklabel = _l( 'label.network.label.display.for.blank.value');
         
         return trafficType;
     };
@@ -157,6 +159,8 @@
         array1.push("&lxcnetworklabel=" + labels.lxcnetworklabel);
         if (labels.hypervnetworklabel != _l( 'label.network.label.display.for.blank.value'))
         array1.push("&hypervnetworklabel=" + labels.hypervnetworklabel);
+        if (labels.ovm3networklabel != _l( 'label.network.label.display.for.blank.value'))
+        array1.push("&ovm3networklabel=" + labels.ovm3networklabel);
         
         $.ajax({
             url: createURL('updateTrafficType' + array1.join("")),
@@ -597,6 +601,10 @@
                                     hypervnetworklabel: {
                                         label: 'label.hyperv.traffic.label',
                                         isEditable: true
+                                    },
+                                    ovm3networklabel: {
+                                        label: 'label.ovm3.traffic.label',
+                                        isEditable: true
                                     }
                                 }],
                                 
@@ -620,7 +628,7 @@
                                             selectedPublicNetworkObj.ovmnetworklabel = trafficType.ovmnetworklabel;
                                             selectedPublicNetworkObj.lxcnetworklabel = trafficType.lxcnetworklabel;
                                             selectedPublicNetworkObj.hypervnetworklabel = trafficType.hypervnetworklabel;
-                                            
+                                            selectedPublicNetworkObj.ovm3networklabel = trafficType.ovm3networklabel;
                                             args.response.success({
                                                 data: selectedPublicNetworkObj
                                             });
@@ -907,6 +915,10 @@
                                     hypervnetworklabel: {
                                         label: 'label.hyperv.traffic.label',
                                         isEditable: true
+                                    },
+                                    ovm3networklabel: {
+                                        label: 'label.ovm3.traffic.label',
+                                        isEditable: true
                                     }
                                 }],
                                 
@@ -926,7 +938,7 @@
                                             selectedPublicNetworkObj.ovmnetworklabel = trafficType.ovmnetworklabel;
                                             selectedPublicNetworkObj.lxcnetworklabel = trafficType.lxcnetworklabel;
                                             selectedPublicNetworkObj.hypervnetworklabel = trafficType.hypervnetworklabel;
-                                            
+                                            selectedPublicNetworkObj.ovm3networklabel = trafficType.ovm3networklabel;
                                             args.response.success({
                                                 data: selectedPublicNetworkObj
                                             });
@@ -1119,6 +1131,10 @@
                                     hypervnetworklabel: {
                                         label: 'label.hyperv.traffic.label',
                                         isEditable: true
+                                    },
+                                    ovm3networklabel: {
+                                        label: 'label.ovm3.traffic.label',
+                                        isEditable: true
                                     }
                                 }],
                                 dataProvider: function (args) {
@@ -1136,7 +1152,7 @@
                                             selectedManagementNetworkObj.ovmnetworklabel = trafficType.ovmnetworklabel;
                                             selectedManagementNetworkObj.lxcnetworklabel = trafficType.lxcnetworklabel;
                                             selectedManagementNetworkObj.hypervnetworklabel = trafficType.hypervnetworklabel;
-                                            
+                                            selectedManagementNetworkObj.ovm3networklabel = trafficType.ovm3networklabel;
                                             args.response.success({
                                                 data: selectedManagementNetworkObj
                                             });
@@ -1308,6 +1324,10 @@
                                     hypervnetworklabel: {
                                         label: 'label.hyperv.traffic.label',
                                         isEditable: true
+                                    },
+                                    ovm3networklabel: {
+                                        label: 'label.ovm3.traffic.label',
+                                        isEditable: true
                                     }
                                 }],
                                 dataProvider: function (args) {
@@ -1347,7 +1367,7 @@
                                             selectedPhysicalNetworkObj[ "ovmnetworklabel"] = trafficType.ovmnetworklabel;
                                             selectedPhysicalNetworkObj[ "lxcnetworklabel"] = trafficType.lxcnetworklabel;
                                             selectedPhysicalNetworkObj[ "hypervnetworklabel"] = trafficType.hypervnetworklabel;
-                                            
+                                            selectedPhysicalNetworkObj[ "ovm3networklabel"] = trafficType.ovm3networklabel;
                                             args.response.success({
                                                 actionFilter: function () {
                                                     var allowedActions =[ 'edit', 'addVlanRange', 'removeVlanRange'];
@@ -3965,7 +3985,7 @@
                                         })
                                     });
                                 }
-                            },
+                            }
                         },
                         actions: {
                             enable: {
@@ -6004,14 +6024,14 @@
                             }
                         }
                     },
-                    // BigSwitch Vns provider detail view
-                    bigswitchVns: {
+                    // BigSwitch BCF provider detail view
+                    bigswitchBcf: {
                         type: 'detailView',
-                        id: 'bigswitchVnsProvider',
-                        label: 'label.bigswitchVns',
+                        id: 'bigswitchBcfProvider',
+                        label: 'label.bigswitchBcf',
                         viewAll: {
                             label: 'label.devices',
-                            path: '_zone.bigswitchVnsDevices'
+                            path: '_zone.bigswitchBcfDevices'
                         },
                         tabs: {
                             details: {
@@ -6027,31 +6047,43 @@
                                     }
                                 }],
                                 dataProvider: function (args) {
-                                    refreshNspData("BigSwitchVns");
+                                    refreshNspData("BigSwitchBcf");
                                     var providerObj;
                                     $(nspHardcodingArray).each(function () {
-                                        if (this.id == "bigswitchVns") {
+                                        if (this.id == "bigswitchBcf") {
                                             providerObj = this;
                                             return false;
                                         }
                                     });
                                     args.response.success({
                                         data: providerObj,
-                                        actionFilter: networkProviderActionFilter('bigswitchVns')
+                                        actionFilter: networkProviderActionFilter('bigswitchBcf')
                                     });
                                 }
                             }
                         },
                         actions: {
                             add: {
-                                label: 'label.add.BigSwitchVns.device',
+                                label: 'label.add.BigSwitchBcf.device',
                                 createForm: {
-                                    title: 'label.add.BigSwitchVns.device',
+                                    title: 'label.add.BigSwitchBcf.device',
                                     preFilter: function (args) {
                                     },
                                     fields: {
                                         host: {
-                                            label: 'label.ip.address'
+                                            label: 'label.host.name'
+                                        },
+                                        username: {
+                                            label: 'label.username'
+                                        },
+                                        password: {
+                                            label: 'label.password',
+                                            isPassword: true
+                                        },
+                                        nat: {
+                                                label: 'label.bigswitch.bcf.nat',
+                                                isBoolean: true,
+                                                isChecked: false
                                         },
                                         numretries: {
                                             label: 'label.numretries',
@@ -6060,14 +6092,14 @@
                                     }
                                 },
                                 action: function (args) {
-                                    if (nspMap[ "bigswitchVns"] == null) {
+                                    if (nspMap[ "bigswitchBcf"] == null) {
                                         $.ajax({
-                                            url: createURL("addNetworkServiceProvider&name=BigSwitchVns&physicalnetworkid=" + selectedPhysicalNetworkObj.id),
+                                            url: createURL("addNetworkServiceProvider&name=BigSwitchBcf&physicalnetworkid=" + selectedPhysicalNetworkObj.id),
                                             dataType: "json",
                                             async: true,
                                             success: function (json) {
                                                 var jobId = json.addnetworkserviceproviderresponse.jobid;
-                                                var addBigSwitchVnsProviderIntervalID = setInterval(function () {
+                                                var addBigSwitchBcfProviderIntervalID = setInterval(function () {
                                                     $.ajax({
                                                         url: createURL("queryAsyncJobResult&jobId=" + jobId),
                                                         dataType: "json",
@@ -6076,18 +6108,18 @@
                                                             if (result.jobstatus == 0) {
                                                                 return; //Job has not completed
                                                             } else {
-                                                                clearInterval(addBigSwitchVnsProviderIntervalID);
+                                                                clearInterval(addBigSwitchBcfProviderIntervalID);
                                                                 if (result.jobstatus == 1) {
-                                                                    nspMap[ "bigswitchVns"] = json.queryasyncjobresultresponse.jobresult.networkserviceprovider;
-                                                                    addBigSwitchVnsDevice(args, selectedPhysicalNetworkObj, "addBigSwitchVnsDevice", "addbigswitchvnsdeviceresponse", "bigswitchvnsdevice")
+                                                                    nspMap[ "bigswitchBcf"] = json.queryasyncjobresultresponse.jobresult.networkserviceprovider;
+                                                                    addBigSwitchBcfDevice(args, selectedPhysicalNetworkObj, "addBigSwitchBcfDevice", "addbigswitchbcfdeviceresponse", "bigswitchbcfdevice")
                                                                 } else if (result.jobstatus == 2) {
-                                                                    alert("addNetworkServiceProvider&name=BigSwitchVns failed. Error: " + _s(result.jobresult.errortext));
+                                                                    alert("addNetworkServiceProvider&name=BigSwitchBcf failed. Error: " + _s(result.jobresult.errortext));
                                                                 }
                                                             }
                                                         },
                                                         error: function (XMLHttpResponse) {
                                                             var errorMsg = parseXMLHttpResponse(XMLHttpResponse);
-                                                            alert("addNetworkServiceProvider&name=BigSwitchVns failed. Error: " + errorMsg);
+                                                            alert("addNetworkServiceProvider&name=BigSwitchBcf failed. Error: " + errorMsg);
                                                         }
                                                     });
                                                 },
@@ -6095,12 +6127,12 @@
                                             }
                                         });
                                     } else {
-                                        addBigSwitchVnsDevice(args, selectedPhysicalNetworkObj, "addBigSwitchVnsDevice", "addbigswitchvnsdeviceresponse", "bigswitchvnsdevice")
+                                        addBigSwitchBcfDevice(args, selectedPhysicalNetworkObj, "addBigSwitchBcfDevice", "addbigswitchbcfdeviceresponse", "bigswitchbcfdevice")
                                     }
                                 },
                                 messages: {
                                     notification: function (args) {
-                                        return 'label.add.BigSwitchVns.device';
+                                        return 'label.add.BigSwitchBcf.device';
                                     }
                                 },
                                 notification: {
@@ -6111,7 +6143,7 @@
                                 label: 'label.enable.provider',
                                 action: function (args) {
                                     $.ajax({
-                                        url: createURL("updateNetworkServiceProvider&id=" + nspMap[ "bigswitchVns"].id + "&state=Enabled"),
+                                        url: createURL("updateNetworkServiceProvider&id=" + nspMap[ "bigswitchBcf"].id + "&state=Enabled"),
                                         dataType: "json",
                                         success: function (json) {
                                             var jid = json.updatenetworkserviceproviderresponse.jobid;
@@ -6142,7 +6174,7 @@
                                 label: 'label.disable.provider',
                                 action: function (args) {
                                     $.ajax({
-                                        url: createURL("updateNetworkServiceProvider&id=" + nspMap[ "bigswitchVns"].id + "&state=Disabled"),
+                                        url: createURL("updateNetworkServiceProvider&id=" + nspMap[ "bigswitchBcf"].id + "&state=Disabled"),
                                         dataType: "json",
                                         success: function (json) {
                                             var jid = json.updatenetworkserviceproviderresponse.jobid;
@@ -6173,7 +6205,7 @@
                                 label: 'label.shutdown.provider',
                                 action: function (args) {
                                     $.ajax({
-                                        url: createURL("deleteNetworkServiceProvider&id=" + nspMap[ "bigswitchVns"].id),
+                                        url: createURL("deleteNetworkServiceProvider&id=" + nspMap[ "bigswitchBcf"].id),
                                         dataType: "json",
                                         success: function (json) {
                                             var jid = json.deletenetworkserviceproviderresponse.jobid;
@@ -7454,7 +7486,7 @@
                                         actionFilter: networkProviderActionFilter('GloboDns')
                                     });
                                 }
-                            },
+                            }
                         },
                         actions: {
                             add: {
@@ -7926,7 +7958,10 @@
                                                                         description: this.name
                                                                     });
                                                                 });
-                                                                
+                                                                items.sort(function(a, b) {
+                                                                    return a.description.localeCompare(b.description);
+                                                                });
+
                                                                 args.response.success({
                                                                     data: items
                                                                 });
@@ -9241,12 +9276,13 @@
                                 	var array1 = [];
                                 	
                                 	// ***** non XenServer (begin) *****
-                                	var hypervisors = ["Hyperv", "KVM", "VMware", "BareMetal", "LXC"];
-                                	
+					var hypervisors = ["Hyperv", "KVM", "VMware", "BareMetal", "LXC", "Ovm3"];
+
                                         	var supportSocketHypervisors = {
-                                        		"Hyperv": 1, 
-                                        		"KVM": 1, 
-                                        		"VMware": 1
+                                                "Hyperv": 1,
+                                                "KVM": 1,
+                                                "VMware": 1,
+                                                "Ovm3": 1
                                         	};                                        	
                                         	
                                 	for (var h = 0; h < hypervisors.length; h++) {
@@ -12688,11 +12724,11 @@
                     }
                 }
             },
-            bigswitchVnsDevices: {
-                id: 'bigswitchVnsDevices',
+            bigswitchBcfDevices: {
+                id: 'bigswitchBcfDevices',
                 title: 'label.devices',
                 listView: {
-                    id: 'bigswitchVnsDevices',
+                    id: 'bigswitchBcfDevices',
                     fields: {
                         hostname: {
                             label: 'label.bigswitch.controller.address'
@@ -12700,14 +12736,35 @@
                     },
                     actions: {
                         add: {
-                            label: 'label.add.BigSwitchVns.device',
+                            label: 'label.add.BigSwitchBcf.device',
                             createForm: {
-                                title: 'label.add.BigSwitchVns.device',
+                                title: 'label.add.BigSwitchBcf.device',
                                 preFilter: function (args) {
                                 },
                                 fields: {
                                     host: {
-                                        label: 'label.ip.address'
+                                        label: 'label.ip.address',
+                                        validation: {
+                                                     required: true
+                                                 }
+                                    },
+                                    username: {
+                                        label: 'label.username',
+                                        validation: {
+                                                     required: true
+                                                 }
+                                    },
+                                    password: {
+                                        label: 'label.password',
+                                        isPassword: true,
+                                        validation: {
+                                                     required: true
+                                                 }
+                                    },
+                                    nat: {
+                                                label: 'label.bigswitch.bcf.nat',
+                                                isBoolean: true,
+                                                isChecked: false
                                     },
                                     numretries: {
                                         label: 'label.numretries',
@@ -12716,14 +12773,14 @@
                                 }
                             },
                             action: function (args) {
-                                if (nspMap[ "bigswitchVns"] == null) {
+                                if (nspMap[ "bigswitchBcf"] == null) {
                                     $.ajax({
-                                        url: createURL("addNetworkServiceProvider&name=BigSwitchVns&physicalnetworkid=" + selectedPhysicalNetworkObj.id),
+                                        url: createURL("addNetworkServiceProvider&name=BigSwitchBcf&physicalnetworkid=" + selectedPhysicalNetworkObj.id),
                                         dataType: "json",
                                         async: true,
                                         success: function (json) {
                                             var jobId = json.addnetworkserviceproviderresponse.jobid;
-                                            var addBigSwitchVnsProviderIntervalID = setInterval(function () {
+                                            var addBigSwitchBcfProviderIntervalID = setInterval(function () {
                                                 $.ajax({
                                                     url: createURL("queryAsyncJobResult&jobId=" + jobId),
                                                     dataType: "json",
@@ -12732,18 +12789,18 @@
                                                         if (result.jobstatus == 0) {
                                                             return;
                                                         } else {
-                                                            clearInterval(addBigSwitchVnsProviderIntervalID);
+                                                            clearInterval(addBigSwitchBcfProviderIntervalID);
                                                             if (result.jobstatus == 1) {
-                                                                nspMap[ "bigswitchVns"] = json.queryasyncjobresultresponse.jobresult.networkserviceprovider;
-                                                                addBigSwitchVnsDevice(args, selectedPhysicalNetworkObj, "addBigSwitchVnsDevice", "addbigswitchvnsdeviceresponse", "bigswitchvnsdevice")
+                                                                nspMap[ "bigswitchBcf"] = json.queryasyncjobresultresponse.jobresult.networkserviceprovider;
+                                                                addBigSwitchBcfDevice(args, selectedPhysicalNetworkObj, "addBigSwitchBcfDevice", "addbigswitchbcfdeviceresponse", "bigswitchbcfdevice")
                                                             } else if (result.jobstatus == 2) {
-                                                                alert("addNetworkServiceProvider&name=BigSwitchVns failed. Error: " + _s(result.jobresult.errortext));
+                                                                alert("addNetworkServiceProvider&name=BigSwitchBcf failed. Error: " + _s(result.jobresult.errortext));
                                                             }
                                                         }
                                                     },
                                                     error: function (XMLHttpResponse) {
                                                         var errorMsg = parseXMLHttpResponse(XMLHttpResponse);
-                                                        alert("addNetworkServiceProvider&name=BigSwitchVns failed. Error: " + errorMsg);
+                                                        alert("addNetworkServiceProvider&name=BigSwitchBcf failed. Error: " + errorMsg);
                                                     }
                                                 });
                                             },
@@ -12751,13 +12808,13 @@
                                         }
                                     });
                                 } else {
-                                    addBigSwitchVnsDevice(args, selectedPhysicalNetworkObj, "addBigSwitchVnsDevice", "addbigswitchvnsdeviceresponse", "bigswitchvnsdevice")
+                                    addBigSwitchBcfDevice(args, selectedPhysicalNetworkObj, "addBigSwitchBcfDevice", "addbigswitchbcfdeviceresponse", "bigswitchbcfdevice")
                                 }
                             },
                             
                             messages: {
                                 notification: function (args) {
-                                    return 'label.added.new.bigswitch.vns.controller';
+                                    return 'label.added.new.bigswitch.bcf.controller';
                                 }
                             },
                             notification: {
@@ -12767,7 +12824,7 @@
                     },
                     dataProvider: function (args) {
                         $.ajax({
-                            url: createURL("listBigSwitchVnsDevices&physicalnetworkid=" + selectedPhysicalNetworkObj.id),
+                            url: createURL("listBigSwitchBcfDevices&physicalnetworkid=" + selectedPhysicalNetworkObj.id),
                             data: {
                                 page: args.page,
                                 pageSize: pageSize
@@ -12775,7 +12832,7 @@
                             dataType: "json",
                             async: false,
                             success: function (json) {
-                                var items = json.listbigswitchvnsdeviceresponse.bigswitchvnsdevice;
+                                var items = json.listbigswitchbcfdeviceresponse.bigswitchbcfdevice;
                                 args.response.success({
                                     data: items
                                 });
@@ -12783,25 +12840,25 @@
                         });
                     },
                     detailView: {
-                        name: 'label.bigswitch.vns.details',
+                        name: 'label.bigswitch.bcf.details',
                         actions: {
                             'remove': {
-                                label: 'label.delete.BigSwitchVns',
+                                label: 'label.delete.BigSwitchBcf',
                                 messages: {
                                     confirm: function (args) {
-                                        return 'message.confirm.delete.BigSwitchVns';
+                                        return 'message.confirm.delete.BigSwitchBcf';
                                     },
                                     notification: function (args) {
-                                        return 'label.delete.BigSwitchVns';
+                                        return 'label.delete.BigSwitchBcf';
                                     }
                                 },
                                 action: function (args) {
                                     $.ajax({
-                                        url: createURL("deleteBigSwitchVnsDevice&vnsdeviceid=" + args.context.bigswitchvnsDevices[0].vnsdeviceid),
+                                        url: createURL("deleteBigSwitchBcfDevice&bcfdeviceid=" + args.context.bigswitchBcfDevices[0].bcfdeviceid),
                                         dataType: "json",
                                         async: true,
                                         success: function (json) {
-                                            var jid = json.deletebigswitchvnsdeviceresponse.jobid;
+                                            var jid = json.deletebigswitchbcfdeviceresponse.jobid;
                                             args.response.success({
                                                 _custom: {
                                                     jobId: jid
@@ -12819,20 +12876,20 @@
                             details: {
                                 title: 'label.details',
                                 fields:[ {
-                                    vnsdeviceid: {
+                                    bcfdeviceid: {
                                         label: 'label.id'
                                     },
                                     hostname: {
-                                        label: 'label.ip.address'
+                                        label: 'label.host.name'
                                     }
                                 }],
                                 dataProvider: function (args) {
                                     $.ajax({
-                                        url: createURL("listBigSwitchVnsDevices&vnsdeviceid=" + args.context.bigswitchVnsDevices[0].vnsdeviceid),
+                                        url: createURL("listBigSwitchBcfDevices&bcfdeviceid=" + args.context.bigswitchBcfDevices[0].bcfdeviceid),
                                         dataType: "json",
                                         async: true,
                                         success: function (json) {
-                                            var item = json.listbigswitchvnsdeviceresponse.bigswitchvnsdevice[0];
+                                            var item = json.listbigswitchbcfdeviceresponse.bigswitchbcfdevice[0];
                                             args.response.success({
                                                 data: item
                                             });
@@ -12860,7 +12917,7 @@
                             label: 'label.api.version'
                         },
                         retrycount: {
-                            label: 'label.numretries',
+                            label: 'label.numretries'
                         },
                         retryinterval: {
                             label: 'label.retry.interval'
@@ -13016,7 +13073,7 @@
                                         label: 'label.api.version'
                                     },
                                     retrycount: {
-                                        label: 'label.numretries',
+                                        label: 'label.numretries'
                                     },
                                     retryinterval: {
                                         label: 'label.retry.interval'
@@ -13191,6 +13248,9 @@
                                                             id: this.id,
                                                             description: this.name
                                                         });
+                                                    });
+                                                    items.sort(function(a, b) {
+                                                        return a.description.localeCompare(b.description);
                                                     });
                                                     
                                                     args.response.success({
@@ -13407,7 +13467,10 @@
                                                                 description: this.name
                                                             });
                                                         });
-                                                        
+                                                        items.sort(function(a, b) {
+                                                            return a.description.localeCompare(b.description);
+                                                        });
+
                                                         args.response.success({
                                                             data: items
                                                         });
@@ -14005,7 +14068,10 @@
                                                             description: this.name
                                                         });
                                                     });
-                                                    
+                                                    items.sort(function(a, b) {
+                                                        return a.description.localeCompare(b.description);
+                                                    });
+
                                                     args.response.success({
                                                         data: items
                                                     });
@@ -14023,7 +14089,31 @@
                                             required: false
                                         }
                                     },
-                                    
+
+                                    //hypervisor==Ovm3 begins here
+                                    ovm3pool: {
+                                        label: 'label.ovm3.pool',
+                                        isHidden: true,
+                                        isBoolean: true,
+                                        isChecked: true,
+                                        docID: 'helpOvm3pool'
+                                    },
+                                    ovm3cluster: {
+                                        label: 'label.ovm3.cluster',
+                                        isHidden: true,
+                                        isBoolean: true,
+                                        isChecked: false,
+                                        docID: 'helpOvm3cluster'
+                                    },
+                                    ovm3vip: {
+                                        label: 'label.ovm3.vip',
+                                        isHidden: true,
+                                        docID: 'helpOvm3Vip',
+                                        validation: {
+                                            required: false
+                                        }
+                                    },
+
                                     //hypervisor==VMWare begins here
                                     vCenterHost: {
                                         label: 'label.vcenter.host',
@@ -14253,7 +14343,11 @@
                                 array1.push("&podId=" + args.data.podId);
                                 
                                 var clusterName = args.data.name;
-                                
+                                if (args.data.hypervisor == "Ovm3") {
+                                     array1.push("&ovm3pool=" + todb(args.data.ovm3pool));
+                                     array1.push("&ovm3cluster=" + todb(args.data.ovm3cluster));
+                                     array1.push("&ovm3vip=" + todb(args.data.ovm3vip));
+                                }
                                 if (args.data.hypervisor == "VMware") {
                                     array1.push("&username=" + todb(args.data.vCenterUsername));
                                     array1.push("&password=" + todb(args.data.vCenterPassword));
@@ -14531,6 +14625,9 @@
                                                                 id: this.id,
                                                                 description: this.name
                                                             });
+                                                        });
+                                                        items.sort(function(a, b) {
+                                                            return a.description.localeCompare(b.description);
                                                         });
                                                         
                                                         args.response.success({
@@ -15243,6 +15340,14 @@
                                                     //$('li[input_group="Ovm"]', $dialogAddHost).hide();
                                                     $form.find('.form-item[rel=agentUsername]').hide();
                                                     $form.find('.form-item[rel=agentPassword]').hide();
+
+                                                    //$('li[input_group="Ovm3"]', $dialogAddHost).hide();
+                                                    $form.find('.form-item[rel=agentUsername]').hide();
+                                                    $form.find('.form-item[rel=agentPassword]').hide();
+                                                    $form.find('.form-item[rel=agentPort]').hide();
+                                                    $form.find('.form-item[rel=ovm3vip]').hide();
+                                                    $form.find('.form-item[rel=ovm3pool]').hide();
+                                                    $form.find('.form-item[rel=ovm3cluster]').hide();
                                                 } else if (selectedClusterObj.hypervisortype == "BareMetal") {
                                                     //$('li[input_group="general"]', $dialogAddHost).show();
                                                     $form.find('.form-item[rel=hostname]').css('display', 'inline-block');
@@ -15257,10 +15362,18 @@
                                                     
                                                     //$('li[input_group="vmware"]', $dialogAddHost).hide();
                                                     $form.find('.form-item[rel=vcenterHost]').hide();
-                                                    
+
                                                     //$('li[input_group="Ovm"]', $dialogAddHost).hide();
                                                     $form.find('.form-item[rel=agentUsername]').hide();
                                                     $form.find('.form-item[rel=agentPassword]').hide();
+
+                                                    //$('li[input_group="Ovm3"]', $dialogAddHost).hide();
+                                                    $form.find('.form-item[rel=agentUsername]').hide();
+                                                    $form.find('.form-item[rel=agentPassword]').hide();
+                                                    $form.find('.form-item[rel=agentPort]').hide();
+                                                    $form.find('.form-item[rel=ovm3vip]').hide();
+                                                    $form.find('.form-item[rel=ovm3pool]').hide();
+                                                    $form.find('.form-item[rel=ovm3cluster]').hide();
                                                 } else if (selectedClusterObj.hypervisortype == "Ovm") {
                                                     //$('li[input_group="general"]', $dialogAddHost).show();
                                                     $form.find('.form-item[rel=hostname]').css('display', 'inline-block');
@@ -15280,6 +15393,38 @@
                                                     $form.find('.form-item[rel=agentUsername]').css('display', 'inline-block');
                                                     $form.find('.form-item[rel=agentUsername]').find('input').val("oracle");
                                                     $form.find('.form-item[rel=agentPassword]').css('display', 'inline-block');
+
+                                                    //$('li[input_group="Ovm3"]', $dialogAddHost).hide();
+                                                    $form.find('.form-item[rel=agentUsername]').hide();
+                                                    $form.find('.form-item[rel=agentPassword]').hide();
+                                                    $form.find('.form-item[rel=agentPort]').hide();
+                                                    $form.find('.form-item[rel=ovm3vip]').hide();
+                                                    $form.find('.form-item[rel=ovm3pool]').hide();
+                                                    $form.find('.form-item[rel=ovm3cluster]').hide();
+                                                } else if (selectedClusterObj.hypervisortype == "Ovm3") {
+                                                    //$('li[input_group="general"]', $dialogAddHost).show();
+                                                    $form.find('.form-item[rel=hostname]').css('display', 'inline-block');
+                                                    $form.find('.form-item[rel=username]').css('display', 'inline-block');
+                                                    $form.find('.form-item[rel=password]').css('display', 'inline-block');
+
+                                                    //$('li[input_group="vmware"]', $dialogAddHost).hide();
+                                                    $form.find('.form-item[rel=vcenterHost]').hide();
+
+                                                    //$('li[input_group="baremetal"]', $dialogAddHost).hide();
+                                                    $form.find('.form-item[rel=baremetalCpuCores]').hide();
+                                                    $form.find('.form-item[rel=baremetalCpu]').hide();
+                                                    $form.find('.form-item[rel=baremetalMemory]').hide();
+                                                    $form.find('.form-item[rel=baremetalMAC]').hide();
+
+                                                     //$('li[input_group="Ovm3"]', $dialogAddHost).show();
+                                                    $form.find('.form-item[rel=agentUsername]').css('display', 'inline-block');
+                                                    $form.find('.form-item[rel=agentUsername]').find('input').val("oracle");
+                                                    $form.find('.form-item[rel=agentPassword]').css('display', 'inline-block');
+                                                    $form.find('.form-item[rel=agentPort]').css('display', 'inline-block');
+                                                    $form.find('.form-item[rel=agentPort]').find('input').val("8899");
+                                                    $form.find('.form-item[rel=ovm3vip]').css('display', 'inline-block');
+                                                    $form.find('.form-item[rel=ovm3pool]').css('display', 'inline-block');
+                                                    $form.find('.form-item[rel=ovm3cluster]').css('display', 'inline-block');
                                                 } else {
                                                     //$('li[input_group="general"]', $dialogAddHost).show();
                                                     $form.find('.form-item[rel=hostname]').css('display', 'inline-block');
@@ -15298,6 +15443,14 @@
                                                     //$('li[input_group="Ovm"]', $dialogAddHost).hide();
                                                     $form.find('.form-item[rel=agentUsername]').hide();
                                                     $form.find('.form-item[rel=agentPassword]').hide();
+
+                                                    //$('li[input_group="Ovm3"]', $dialogAddHost).hide();
+                                                    $form.find('.form-item[rel=agentUsername]').hide();
+                                                    $form.find('.form-item[rel=agentPassword]').hide();
+                                                    $form.find('.form-item[rel=agentPort]').hide();
+                                                    $form.find('.form-item[rel=ovm3vip]').hide();
+                                                    $form.find('.form-item[rel=ovm3pool]').hide();
+                                                    $form.find('.form-item[rel=ovm3cluster]').hide();
                                                 }
                                             });
                                             
@@ -15362,6 +15515,9 @@
                                                             id: this.id,
                                                             description: this.name
                                                         });
+                                                    });
+                                                    items.sort(function(a, b) {
+                                                        return a.description.localeCompare(b.description);
                                                     });
                                                     
                                                     args.response.success({
@@ -15442,7 +15598,17 @@
                                         isPassword: true
                                     },
                                     //input_group="OVM" ends here
-                                    
+
+                                    //input_group="OVM3" starts here
+                                    agentPort: {
+                                        label: 'label.agent.port',
+                                        validation: {
+                                            required: false
+                                        },
+                                        isHidden: true
+                                    },
+                                    //input_group="OVM3" ends here
+
                                     //always appear (begin)
                                     hosttags: {
                                         label: 'label.host.tags',
@@ -15540,6 +15706,12 @@
                                             agentusername: args.data.agentUsername,
                                             agentpassword: args.data.agentPassword
                                         });
+                                    } else if (selectedClusterObj.hypervisortype == "Ovm3") {
+                                        $.extend(data, {
+                                            agentusername: args.data.agentUsername,
+                                            agentpassword: args.data.agentPassword,
+                                            agentport: args.data.agentPort
+                                       });
                                     }
                                 }
                                 
@@ -15676,6 +15848,9 @@
                                                                 id: this.id,
                                                                 description: this.name
                                                             });
+                                                        });
+                                                        items.sort(function(a, b) {
+                                                            return a.description.localeCompare(b.description);
                                                         });
                                                         
                                                         args.response.success({
@@ -16689,6 +16864,13 @@
                                                 });
                                                 args.response.success({
                                                     data: items
+                                                });
+                                            // 3.3.2 has ceph/ocfs2/iscsi etc
+                                            } else if (selectedClusterObj.hypervisortype == "Ovm3") {
+                                                var items =[];
+                                                items.push({
+                                                    id: "nfs",
+                                                    description: "nfs"
                                                 });
                                             } else {
                                                 args.response.success({
@@ -20031,11 +20213,14 @@
         });
     }
     
-    function addBigSwitchVnsDevice(args, physicalNetworkObj, apiCmd, apiCmdRes, apiCmdObj) {
+    function addBigSwitchBcfDevice(args, physicalNetworkObj, apiCmd, apiCmdRes, apiCmdObj) {
         var array1 =[];
         array1.push("&physicalnetworkid=" + physicalNetworkObj.id);
         array1.push("&hostname=" + todb(args.data.host));
-        
+        array1.push("&username=" + args.data.username);
+        array1.push("&password=" + args.data.password);
+        array1.push("&nat=" + (args.data.nat == 'on' ? "true": "false"));
+
         $.ajax({
             url: createURL(apiCmd + array1.join("")),
             dataType: "json",
@@ -20101,7 +20286,7 @@
                 var jid = json[apiCmdRes].jobid;
                 args.response.success({
                     _custom: {
-                        jobId: jid,
+                        jobId: jid
                     }
                 });
             }
@@ -20777,8 +20962,8 @@
 							case "BrocadeVcs":
                             nspMap[ "brocadeVcs"] = items[i];
                             break;
-                            case "BigSwitchVns":
-                            nspMap[ "bigswitchVns"] = items[i];
+                            case "BigSwitchBcf":
+                            nspMap[ "bigswitchBcf"] = items[i];
                             break;
                             case "Ovs":
                             nspMap[ "Ovs"] = items[i];
@@ -20819,9 +21004,9 @@
             state: nspMap.brocadeVcs ? nspMap.brocadeVcs.state: 'Disabled'
         },
         {
-            id: 'bigswitchVns',
-            name: 'BigSwitch Vns',
-            state: nspMap.bigswitchVns ? nspMap.bigswitchVns.state: 'Disabled'
+            id: 'bigswitchBcf',
+            name: 'BigSwitch BCF',
+            state: nspMap.bigswitchBcf ? nspMap.bigswitchBcf.state: 'Disabled'
         },
         {
             id: 'BaremetalDhcpProvider',

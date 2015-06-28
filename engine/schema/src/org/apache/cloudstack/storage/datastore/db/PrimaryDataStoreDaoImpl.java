@@ -76,6 +76,7 @@ public class PrimaryDataStoreDaoImpl extends GenericDaoBase<StoragePoolVO, Long>
         AllFieldSearch.and("datacenterId", AllFieldSearch.entity().getDataCenterId(), SearchCriteria.Op.EQ);
         AllFieldSearch.and("hostAddress", AllFieldSearch.entity().getHostAddress(), SearchCriteria.Op.EQ);
         AllFieldSearch.and("status", AllFieldSearch.entity().getStatus(), SearchCriteria.Op.EQ);
+        AllFieldSearch.and("scope", AllFieldSearch.entity().getScope(), SearchCriteria.Op.EQ);
         AllFieldSearch.and("path", AllFieldSearch.entity().getPath(), SearchCriteria.Op.EQ);
         AllFieldSearch.and("podId", AllFieldSearch.entity().getPodId(), Op.EQ);
         AllFieldSearch.and("clusterId", AllFieldSearch.entity().getClusterId(), Op.EQ);
@@ -310,6 +311,26 @@ public class PrimaryDataStoreDaoImpl extends GenericDaoBase<StoragePoolVO, Long>
     }
 
     @Override
+    public List<StoragePoolVO> findDisabledPoolsByScope(long dcId, Long podId, Long clusterId, ScopeType scope) {
+        List<StoragePoolVO> storagePools = null;
+        SearchCriteria<StoragePoolVO> sc = AllFieldSearch.create();
+        sc.setParameters("status", StoragePoolStatus.Disabled);
+        sc.setParameters("scope", scope);
+
+        if (scope == ScopeType.ZONE) {
+            sc.setParameters("datacenterId", dcId);
+            storagePools = listBy(sc);
+        } else if ((scope == ScopeType.CLUSTER || scope == ScopeType.HOST) && podId != null && clusterId != null) {
+            sc.setParameters("datacenterId", dcId);
+            sc.setParameters("podId", podId);
+            sc.setParameters("clusterId", clusterId);
+            storagePools = listBy(sc);
+        }
+
+        return storagePools;
+    }
+
+    @Override
     public List<StoragePoolVO> findLocalStoragePoolsByTags(long dcId, long podId, Long clusterId, String[] tags) {
         List<StoragePoolVO> storagePools = null;
         if (tags == null || tags.length == 0) {
@@ -371,20 +392,21 @@ public class PrimaryDataStoreDaoImpl extends GenericDaoBase<StoragePoolVO, Long>
 
             StringBuilder sql = new StringBuilder(ZoneWideDetailsSqlPrefix);
 
-            for (Map.Entry<String, String> detail : details.entrySet()) {
-                sql.append("((storage_pool_details.name='")
-                    .append(detail.getKey())
-                    .append("') AND (storage_pool_details.value='")
-                    .append(detail.getValue())
-                    .append("')) OR ");
+            for (int i=0;i<details.size();i++){
+                sql.append("((storage_pool_details.name=?) AND (storage_pool_details.value=?)) OR ");
             }
             sql.delete(sql.length() - 4, sql.length());
             sql.append(ZoneWideDetailsSqlSuffix);
             TransactionLegacy txn = TransactionLegacy.currentTxn();
             try (PreparedStatement pstmt = txn.prepareStatement(sql.toString());){
+                int i=0;
+                for (Map.Entry<String, String> detail : details.entrySet()) {
+                    pstmt.setString(++i,detail.getKey());
+                    pstmt.setString(++i,detail.getValue());
+                }
                 List<StoragePoolVO> pools = new ArrayList<StoragePoolVO>();
                 if (pstmt != null) {
-                    int i = 1;
+                    i = 1;
                     pstmt.setLong(i++, dcId);
                     pstmt.setString(i++, ScopeType.ZONE.toString());
                     pstmt.setInt(i++, details.size());

@@ -300,6 +300,16 @@ cloudStack.docs = {
     helpComputeOfferingDomain: {
         desc: 'The domain to associate this compute offering with'
     },
+    // Create Instance Snapshot
+    helpCreateInstanceSnapshotName: {
+        desc: 'Give the snapshot a name. A unique name will be automatically generated if you leave this blank'
+    },
+    helpCreateInstanceSnapshotDescription: {
+        desc: 'A short description of for the snapshot'
+    },
+    helpCreateInstanceSnapshotMemory: {
+        desc: 'Check this to include CPU/memory state. Does not quiesce the VM. If not checked, the snapshot contain only volumes.'
+    },
     // Add disk offering
     helpDiskOfferingName: {
         desc: 'Any desired name for the offering',
@@ -326,7 +336,7 @@ cloudStack.docs = {
         externalLink: ''
     },
     helpDiskOfferingDiskSize: {
-        desc: 'Appears only if Custom Disk Size is not selected. Define the volume size in GB.',
+        desc: 'Appears only if Custom Disk Size is not selected. Define the volume size in GB. (1GB = 1,073,741,824 bytes)',
         externalLink: ''
     },
     helpDiskOfferingDiskBytesReadRate: {
@@ -358,7 +368,7 @@ cloudStack.docs = {
         externalLink: ''
     },
     helpDiskOfferingHypervisorSnapshotReserve: {
-        desc: 'Hypervisor snapshot reserve space as a percent of a volume (for managed storage using XenServer or VMware) (Ex. The value 25 means 25%.)).',
+        desc: 'Hypervisor snapshot reserve space as a percent of a volume (for managed storage using XenServer or VMware) (Ex. The value 25 means 25%.)).'
     },
     helpDiskOfferingCacheMode: {
         desc: 'The write caching mode to use for disks created with this disk offering. This can improve write performance.',
@@ -1009,6 +1019,10 @@ cloudStack.docs = {
         desc: 'Choose the characteristics of the storage.',
         externalLink: ''
     },
+    helpVolumeSizeGb: {
+        desc: 'Volume size in GB (1GB = 1,073,741,824 bytes)',
+        externalLink: ''
+    },
     // Add VPC
     helpVPCName: {
         desc: 'A name for the new VPC',
@@ -1154,7 +1168,7 @@ cloudStack.docs = {
         externalLink: ''
     },
     helpRegisterISOExtractable: {
-        desc: 'Whether the ISO is extractable or not',
+        desc: 'Whether the ISO is downloadable by users or not',
         externalLink: ''
     },
     helpRegisterISOPublic: {
@@ -1195,7 +1209,7 @@ cloudStack.docs = {
         externalLink: ''
     },
     helpRegisterTemplateExtractable: {
-        desc: 'Whether the template is extractable or not',
+        desc: 'Whether the template is downloadable by users or not',
         externalLink: ''
     },
     helpRegisterTemplateDynamicallyScalable: {
@@ -1282,6 +1296,18 @@ cloudStack.docs = {
     },
     helpVspRetryInterval: {
         desc: 'The interval of time in milliseconds to wait on failure before attempting to resend the command to Nuage VSD.  Valid values [0 - 10000].',
+        externalLink: ''
+    },
+    helpOvm3pool: {
+        desc: 'Pool the Ovm3 nodes in this cluster, required for vm node migrations',
+        externalLink: ''
+    },
+    helpOvm3cluster: {
+        desc: 'Use the native Ovm3 OCFS2 clustering, required for native HA and requires pooling',
+        externalLink: ''
+    },
+    helpOvm3Vip: {
+        desc: 'The VIP used by the pool and cluster',
         externalLink: ''
     }
 };

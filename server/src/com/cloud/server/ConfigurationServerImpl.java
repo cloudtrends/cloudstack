@@ -46,6 +46,7 @@ import javax.naming.ConfigurationException;
 import com.cloud.utils.nio.Link;
 import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.io.FileUtils;
+import org.apache.commons.lang.StringUtils;
 import org.apache.log4j.Logger;
 
 import org.apache.cloudstack.config.ApiServiceConfiguration;
@@ -222,6 +223,9 @@ public class ConfigurationServerImpl extends ManagerBase implements Configuratio
             _configDao.update("user.password.encoders.exclude", "MD5,LDAP,PLAINTEXT");
             s_logger.debug("Configuration server excluded insecure encoders");
 
+            _configDao.update("user.authenticators.exclude", "PLAINTEXT");
+            s_logger.debug("Configuration server excluded plaintext authenticator");
+
             // Save default service offerings
             createServiceOffering(User.UID_SYSTEM, "Small Instance", 1, 512, 500, "Small Instance", ProvisioningType.THIN, false, false, null);
             createServiceOffering(User.UID_SYSTEM, "Medium Instance", 1, 1024, 1000, "Medium Instance", ProvisioningType.THIN, false, false, null);
@@ -305,6 +309,9 @@ public class ConfigurationServerImpl extends ManagerBase implements Configuratio
 
         // store the public and private keys in the database
         updateKeyPairs();
+
+        // generate a PSK to communicate with SSVM
+        updateSecondaryStorageVMSharedKey();
 
         // generate a random password for system vm
         updateSystemvmPassword();
@@ -470,7 +477,7 @@ public class ConfigurationServerImpl extends ManagerBase implements Configuratio
                     PreparedStatement stmt = txn.prepareAutoCloseStatement(insertSql);
                     stmt.executeUpdate();
                 } catch (SQLException ex) {
-                    s_logger.debug("Caught exception when inserting system account: " + ex.getMessage());
+                    s_logger.debug("Looks like system account already exists");
                 }
                 // insert system user
                 insertSql = "INSERT INTO `cloud`.`user` (id, uuid, username, password, account_id, firstname, lastname, created, user.default)"
@@ -480,7 +487,7 @@ public class ConfigurationServerImpl extends ManagerBase implements Configuratio
                     PreparedStatement stmt = txn.prepareAutoCloseStatement(insertSql);
                     stmt.executeUpdate();
                 } catch (SQLException ex) {
-                    s_logger.debug("Caught SQLException when inserting system user: " + ex.getMessage());
+                    s_logger.debug("Looks like system user already exists");
                 }
 
                 // insert admin user, but leave the account disabled until we set a
@@ -497,7 +504,7 @@ public class ConfigurationServerImpl extends ManagerBase implements Configuratio
                     PreparedStatement stmt = txn.prepareAutoCloseStatement(insertSql);
                     stmt.executeUpdate();
                 } catch (SQLException ex) {
-                    s_logger.debug("Caught SQLException when creating admin account: " + ex.getMessage());
+                    s_logger.debug("Looks like admin account already exists");
                 }
 
                 // now insert the user
@@ -508,7 +515,7 @@ public class ConfigurationServerImpl extends ManagerBase implements Configuratio
                     PreparedStatement stmt = txn.prepareAutoCloseStatement(insertSql);
                     stmt.executeUpdate();
                 } catch (SQLException ex) {
-                    s_logger.debug("Caught SQLException when inserting admin user: " + ex.getMessage());
+                    s_logger.debug("Looks like admin user already exists");
                 }
 
                 try {
@@ -519,8 +526,7 @@ public class ConfigurationServerImpl extends ManagerBase implements Configuratio
                         stmt.executeQuery();
                         tableName = "network_group";
                     } catch (Exception ex) {
-                        // if network_groups table exists, create the default security group there
-                        s_logger.debug("Caught (SQL?)Exception: no network_group  " + ex.getLocalizedMessage());
+                        // Ignore in case of exception, table must not exist
                     }
 
                     insertSql = "SELECT * FROM " + tableName + " where account_id=2 and name='default'";
@@ -687,12 +693,11 @@ public class ConfigurationServerImpl extends ManagerBase implements Configuratio
             TransactionLegacy txn = TransactionLegacy.currentTxn();
             try {
                 String rpassword = PasswordGenerator.generatePresharedKey(8);
-                String wSql =
-                        "INSERT INTO `cloud`.`configuration` (category, instance, component, name, value, description) " +
-                                "VALUES ('Secure','DEFAULT', 'management-server','system.vm.password', '" + DBEncryptionUtil.encrypt(rpassword) +
-                                "','randmon password generated each management server starts for system vm')";
+                String wSql = "INSERT INTO `cloud`.`configuration` (category, instance, component, name, value, description) "
+                + "VALUES ('Secure','DEFAULT', 'management-server','system.vm.password', ?,'randmon password generated each management server starts for system vm')";
                 PreparedStatement stmt = txn.prepareAutoCloseStatement(wSql);
-                stmt.executeUpdate(wSql);
+                stmt.setString(1, DBEncryptionUtil.encrypt(rpassword));
+                stmt.executeUpdate();
                 s_logger.info("Updated systemvm password in database");
             } catch (SQLException e) {
                 s_logger.error("Cannot retrieve systemvm password", e);
@@ -965,18 +970,42 @@ public class ConfigurationServerImpl extends ManagerBase implements Configuratio
 
     private void updateSSOKey() {
         try {
-            String encodedKey = null;
-
-            // Algorithm for SSO Keys is SHA1, should this be configurable?
-            KeyGenerator generator = KeyGenerator.getInstance("HmacSHA1");
-            SecretKey key = generator.generateKey();
-            encodedKey = Base64.encodeBase64URLSafeString(key.getEncoded());
-
-            _configDao.update(Config.SSOKey.key(), Config.SSOKey.getCategory(), encodedKey);
+            _configDao.update(Config.SSOKey.key(), Config.SSOKey.getCategory(), getPrivateKey());
         } catch (NoSuchAlgorithmException ex) {
             s_logger.error("error generating sso key", ex);
         }
     }
+
+    /**
+     * preshared key to be used by management server to communicate with SSVM during volume/template upload
+     */
+    private void updateSecondaryStorageVMSharedKey() {
+        try {
+            ConfigurationVO configInDB = _configDao.findByName(Config.SSVMPSK.key());
+            if(configInDB == null) {
+                ConfigurationVO configVO = new ConfigurationVO(Config.SSVMPSK.getCategory(), "DEFAULT", Config.SSVMPSK.getComponent(), Config.SSVMPSK.key(), getPrivateKey(),
+                        Config.SSVMPSK.getDescription());
+                s_logger.info("generating a new SSVM PSK. This goes to SSVM on Start");
+                _configDao.persist(configVO);
+            } else if (StringUtils.isEmpty(configInDB.getValue())) {
+                s_logger.info("updating the SSVM PSK with new value. This goes to SSVM on Start");
+                _configDao.update(Config.SSVMPSK.key(), Config.SSVMPSK.getCategory(), getPrivateKey());
+            }
+        } catch (NoSuchAlgorithmException ex) {
+            s_logger.error("error generating ssvm psk", ex);
+        }
+    }
+
+    private String getPrivateKey() throws NoSuchAlgorithmException {
+        String encodedKey = null;
+        // Algorithm for generating Key is SHA1, should this be configurable?
+        KeyGenerator generator = KeyGenerator.getInstance("HmacSHA1");
+        SecretKey key = generator.generateKey();
+        encodedKey = Base64.encodeBase64URLSafeString(key.getEncoded());
+        return encodedKey;
+
+    }
+
 
     @DB
     protected HostPodVO createPod(long userId, String podName, final long zoneId, String gateway, String cidr, final String startIp, String endIp)
@@ -1341,7 +1370,7 @@ public class ConfigurationServerImpl extends ManagerBase implements Configuratio
                     if (broadcastDomainType != null) {
                         NetworkVO network =
                                 new NetworkVO(id, trafficType, mode, broadcastDomainType, networkOfferingId, domainId, accountId, related, null, null, networkDomain,
-                                        Network.GuestType.Shared, zoneId, null, null, specifyIpRanges, null);
+                                        Network.GuestType.Shared, zoneId, null, null, specifyIpRanges, null, offering.getRedundantRouter());
                         network.setGuruName(guruNames.get(network.getTrafficType()));
                         network.setDns1(zone.getDns1());
                         network.setDns2(zone.getDns2());

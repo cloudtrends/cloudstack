@@ -573,6 +573,9 @@
                                                             description: this.path
                                                         });
                                                     });
+                                                    items.sort(function(a, b) {
+                                                        return a.description.localeCompare(b.description);
+                                                    });
                                                     args.response.success({
                                                         data: items
                                                     });
@@ -755,7 +758,7 @@
                             success: function(json) {
                                 var items = json.listserviceofferingsresponse.serviceoffering;
                                 args.response.success({
-                                    actionFitler: serviceOfferingActionfilter,
+                                    actionFilter: serviceOfferingActionfilter,
                                     data: items
                                 });
                             },
@@ -982,7 +985,7 @@
                                             }
 
                                             args.response.success({
-                                                actionFitler: serviceOfferingActionfilter,
+                                                actionFilter: serviceOfferingActionfilter,
                                                 data: item
                                             });
                                         }
@@ -1219,6 +1222,9 @@
                                                             id: this.id,
                                                             description: this.path
                                                         });
+                                                    });
+                                                    items.sort(function(a, b) {
+                                                        return a.description.localeCompare(b.description);
                                                     });
                                                     args.response.success({
                                                         data: items
@@ -1516,7 +1522,7 @@
                                         success: function(json) {
                                             var item = json.listserviceofferingsresponse.serviceoffering[0];
                                             args.response.success({
-                                                actionFitler: systemServiceOfferingActionfilter,
+                                                actionFilter: systemServiceOfferingActionfilter,
                                                 data: item
                                             });
                                         }
@@ -1893,6 +1899,9 @@
                                                             description: this.path
                                                         });
                                                     });
+                                                    items.sort(function(a, b) {
+                                                        return a.description.localeCompare(b.description);
+                                                    });
                                                     args.response.success({
                                                         data: items
                                                     });
@@ -2148,7 +2157,7 @@
                                         label: 'label.disk.iops.write.rate'
                                     },
                                     cacheMode: {
-                                        label: 'label.cache.mode',
+                                        label: 'label.cache.mode'
                                     },
                                     tags: {
                                         label: 'label.storage.tags'
@@ -2286,7 +2295,7 @@
                                         //p.s. Netscaler is supported in both vpc and non-vpc
                                         if ($useVpc.is(':visible') && $useVpcCb.is(':checked')) { //*** vpc ***
                                             $optionsOfProviders.each(function(index) {
-                                                if ($(this).val() == 'InternalLbVm' || $(this).val() == 'VpcVirtualRouter' || $(this).val() == 'Netscaler'  || $(this).val() == 'NuageVsp' || $(this).val() == 'NuageVspVpc') {
+                                                if ($(this).val() == 'InternalLbVm' || $(this).val() == 'VpcVirtualRouter' || $(this).val() == 'Netscaler'  || $(this).val() == 'NuageVsp' || $(this).val() == 'NuageVspVpc' || $(this).val() == 'BigSwitchBcf') {
                                                     $(this).attr('disabled', false);
                                                 } else {
                                                     $(this).attr('disabled', true);
@@ -3578,25 +3587,29 @@
                                             });
                                             networkServiceObjs.push({
                                                 name: 'Gateway',
-                                                provider: [{name: 'VpcVirtualRouter'}]
+                                                provider: [{name: 'VpcVirtualRouter'},
+                                                           {name: 'BigSwitchBcf'}]
                                             });
                                             networkServiceObjs.push({
                                                 name: 'StaticNat',
                                                 provider: [
                                                        {name: 'VpcVirtualRouter'},
-                                                       {name: 'NuageVsp'}]
+                                                       {name: 'NuageVsp'},
+                                                       {name: 'BigSwitchBcf'}]
                                             });
                                             networkServiceObjs.push({
                                                 name: 'SourceNat',
                                                 provider: [
                                                        {name: 'VpcVirtualRouter'},
-                                                       {name: 'NuageVsp'}]
+                                                       {name: 'NuageVsp'},
+                                                       {name: 'BigSwitchBcf'}]
                                             });
                                             networkServiceObjs.push({
                                                 name: 'NetworkACL',
                                                 provider: [
                                                        {name: 'VpcVirtualRouter'},
-                                                       {name: 'NuageVsp'}]
+                                                       {name: 'NuageVsp'},
+                                                       {name: 'BigSwitchBcf'}]
                                             });
                                             networkServiceObjs.push({
                                                 name: 'PortForwarding',
@@ -3608,12 +3621,14 @@
                                             });
                                             networkServiceObjs.push({
                                                 name: 'Vpn',
-                                                provider: [{name: 'VpcVirtualRouter'}]
+                                                provider: [{name: 'VpcVirtualRouter'},
+                                                           {name: 'BigSwitchBcf'}]
                                             });
 
                                             networkServiceObjs.push({
                                                 name: 'Connectivity',
                                                 provider: [
+                                                    {name: 'BigSwitchBcf'},
                                                     {name: 'NiciraNvp'},
                                                     {name: 'Ovs'},
                                                     {name: 'JuniperContrailVpcRouter'},
@@ -3669,7 +3684,7 @@
 
                                                 fields[id.isEnabled] = {
                                                     label: serviceDisplayName,
-                                                    isBoolean: true,
+                                                    isBoolean: true
                                                 };
 
                                                 serviceFields.push(id.isEnabled);
@@ -3711,8 +3726,15 @@
                                         isHidden: true,
                                         dependsOn: 'service.Connectivity.isEnabled',
                                         isBoolean: true
+                                    },
+
+                                    "service.SourceNat.redundantRouterCapabilityCheckbox": {
+                                        label: 'label.redundant.router.capability',
+                                        isHidden: true,
+                                        dependsOn: 'service.SourceNat.isEnabled',
+                                        isBoolean: true
                                     }
-                                },//end of fields
+                                }//end of fields
                             }, //end of createForm
 
                             action: function(args) {
@@ -3720,10 +3742,8 @@
                                 var inputData = {};
                                 var serviceProviderMap = {};
                                 var serviceCapabilityIndex = 0;
-
                                 $.each(formData, function(key, value) {
                                     var serviceData = key.split('.');
-
                                     if (serviceData.length > 1) {
                                         if (serviceData[0] == 'service' &&
                                             serviceData[2] == 'isEnabled' &&
@@ -3742,7 +3762,13 @@
                                             inputData['servicecapabilitylist[' + serviceCapabilityIndex + '].capabilitytype'] = 'DistributedRouter';
                                             inputData['servicecapabilitylist[' + serviceCapabilityIndex + '].capabilityvalue'] = true;
                                             serviceCapabilityIndex++;
+                                        } else if ((key == 'service.SourceNat.redundantRouterCapabilityCheckbox') && ("SourceNat" in serviceProviderMap)) {
+                                            inputData['serviceCapabilityList[' + serviceCapabilityIndex + '].service'] = 'SourceNat';
+                                            inputData['serviceCapabilityList[' + serviceCapabilityIndex + '].capabilitytype'] = "RedundantRouter";
+                                            inputData['serviceCapabilityList[' + serviceCapabilityIndex + '].capabilityvalue'] = true;
+                                            serviceCapabilityIndex++;
                                         }
+
                                     } else if (value != '') { // Normal data
                                         inputData[key] = value;
                                     }

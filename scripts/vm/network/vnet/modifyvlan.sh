@@ -34,6 +34,7 @@ addVlan() {
 	if [ ! -d /sys/class/net/$vlanDev ]
 	then
 		ip link add link $pif name $vlanDev type vlan id $vlanId > /dev/null
+		ip link set $vlanDev up
 		
 		if [ $? -gt 0 ]
 		then
@@ -164,6 +165,11 @@ lsmod|grep ^8021q >& /dev/null
 if [ $? -gt 0 ]
 then
    modprobe 8021q >& /dev/null
+fi
+
+if [ "$vlanId" -eq 4095 ]
+then
+    exit 0
 fi
 
 if [ "$op" == "add" ]

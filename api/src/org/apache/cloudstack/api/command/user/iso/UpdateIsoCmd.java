@@ -39,7 +39,12 @@ public class UpdateIsoCmd extends BaseUpdateTemplateOrIsoCmd {
     /////////////////////////////////////////////////////
 
     @Override
-    public Boolean isPasswordEnabled() {
+    public Boolean getRequiresHvm() {
+        return null;
+    }
+
+    @Override
+    public Boolean getPasswordEnabled() {
         return null;
     }
 
@@ -75,7 +80,7 @@ public class UpdateIsoCmd extends BaseUpdateTemplateOrIsoCmd {
             response.setResponseName(getCommandName());
             setResponseObject(response);
         } else {
-            throw new ServerApiException(ApiErrorCode.INTERNAL_ERROR, "Failed to update iso");
+            throw new ServerApiException(ApiErrorCode.INTERNAL_ERROR, "Failed to update ISO");
         }
     }
 }

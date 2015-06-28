@@ -42,25 +42,25 @@ function install_packages() {
   debconf_packages
   install_vhd_util
 
-  local apt_install="apt-get --no-install-recommends -q -y --force-yes install"
+  local apt_get="apt-get --no-install-recommends -q -y --force-yes"
 
   #32 bit architecture support:: not required for 32 bit template
   if [ "${arch}" != "i386" ]; then
     dpkg --add-architecture i386
     apt-get update
-    ${apt_install} links:i386 libuuid1:i386
+    ${apt_get} install links:i386 libuuid1:i386 libc6:i386
   fi
 
-  ${apt_install} \
+  ${apt_get} install \
     rsyslog logrotate cron chkconfig insserv net-tools ifupdown vim-tiny netbase iptables \
     openssh-server e2fsprogs dhcp3-client tcpdump socat wget \
     python bzip2 sed gawk diffutils grep gzip less tar telnet ftp rsync traceroute psmisc lsof procps \
-    inetutils-ping iputils-arping httping \
+    inetutils-ping iputils-arping httping  curl \
     dnsutils zip unzip ethtool uuid file iproute acpid virt-what sudo \
-    sysstat \
+    sysstat python-netaddr \
     apache2 ssl-cert \
     dnsmasq dnsmasq-utils \
-    nfs-common irqbalance \
+    nfs-common \
     samba-common cifs-utils \
     xl2tpd bcrelay ppp ipsec-tools tdb-tools \
     openswan=1:2.6.37-3 \
@@ -70,36 +70,28 @@ function install_packages() {
     openjdk-7-jre-headless \
     iptables-persistent \
     libtcnative-1 libssl-dev libapr1-dev \
-    open-vm-tools \
     python-flask \
     haproxy \
     radvd \
     sharutils
+
+  ${apt_get} -t wheezy-backports install irqbalance open-vm-tools
 
   # hold on installed openswan version, upgrade rest of the packages (if any)
   apt-mark hold openswan
   apt-get update
   apt-get -y --force-yes upgrade
 
-  # commented out installation of vmware-tools as we are using the open source open-vm-tools:
-  # ${apt_install} build-essential linux-headers-`uname -r`
-  # df -h
-  # PREVDIR=$PWD
-  # cd /opt
-  # wget http://people.apache.org/~bhaisaab/cloudstack/VMwareTools-9.2.1-818201.tar.gz
-  # tar xzf VMwareTools-9.2.1-818201.tar.gz
-  # rm VMwareTools-*.tar.gz
-  # cd vmware-tools-distrib
-  # ./vmware-install.pl -d
-  # cd $PREV
-  # rm -fr /opt/vmware-tools-distrib
-  # apt-get -q -y --force-yes purge build-essential
-
-  # Hyperv  kvp daemon - 64bit only
   if [ "${arch}" == "amd64" ]; then
+    # Hyperv  kvp daemon - 64bit only
     # Download the hv kvp daemon
     wget http://people.apache.org/~rajeshbattala/hv-kvp-daemon_3.1_amd64.deb
     dpkg -i hv-kvp-daemon_3.1_amd64.deb
+    rm -f hv-kvp-daemon_3.1_amd64.deb
+    # XS tools
+    wget https://raw.githubusercontent.com/bhaisaab/cloudstack-nonoss/master/xe-guest-utilities_6.5.0_amd64.deb
+    dpkg -i xe-guest-utilities_6.5.0_amd64.deb
+    rm -f xe-guest-utilities_6.5.0_amd64.deb
   fi
 }
 

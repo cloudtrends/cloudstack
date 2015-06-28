@@ -30,7 +30,11 @@ import javax.ejb.Local;
 import javax.inject.Inject;
 import javax.naming.ConfigurationException;
 
-import com.cloud.vm.VirtualMachine;
+import org.apache.commons.lang.ObjectUtils;
+import org.apache.log4j.Logger;
+import org.springframework.stereotype.Component;
+
+import com.google.gson.Gson;
 
 import org.apache.cloudstack.api.ApiConstants;
 import org.apache.cloudstack.api.command.admin.cluster.AddClusterCmd;
@@ -47,9 +51,6 @@ import org.apache.cloudstack.framework.config.dao.ConfigurationDao;
 import org.apache.cloudstack.storage.datastore.db.PrimaryDataStoreDao;
 import org.apache.cloudstack.storage.datastore.db.StoragePoolVO;
 import org.apache.cloudstack.utils.identity.ManagementServerNode;
-import org.apache.commons.lang.ObjectUtils;
-import org.apache.log4j.Logger;
-import org.springframework.stereotype.Component;
 
 import com.cloud.agent.AgentManager;
 import com.cloud.agent.api.Answer;
@@ -153,12 +154,12 @@ import com.cloud.utils.db.JoinBuilder;
 import com.cloud.utils.db.QueryBuilder;
 import com.cloud.utils.db.SearchBuilder;
 import com.cloud.utils.db.SearchCriteria;
-import com.cloud.utils.db.TransactionLegacy;
 import com.cloud.utils.db.SearchCriteria.Func;
 import com.cloud.utils.db.SearchCriteria.Op;
 import com.cloud.utils.db.Transaction;
 import com.cloud.utils.db.TransactionCallback;
 import com.cloud.utils.db.TransactionCallbackNoReturn;
+import com.cloud.utils.db.TransactionLegacy;
 import com.cloud.utils.db.TransactionStatus;
 import com.cloud.utils.exception.CloudRuntimeException;
 import com.cloud.utils.fsm.NoTransitionException;
@@ -167,10 +168,10 @@ import com.cloud.utils.net.NetUtils;
 import com.cloud.utils.ssh.SSHCmdHelper;
 import com.cloud.utils.ssh.SshException;
 import com.cloud.vm.VMInstanceVO;
+import com.cloud.vm.VirtualMachine;
 import com.cloud.vm.VirtualMachine.State;
 import com.cloud.vm.VirtualMachineManager;
 import com.cloud.vm.dao.VMInstanceDao;
-import com.google.gson.Gson;
 
 @Component
 @Local({ResourceManager.class, ResourceService.class})
@@ -484,6 +485,13 @@ public class ResourceManagerImpl extends ManagerBase implements ResourceManager,
 
         if (clusterType == Cluster.ClusterType.CloudManaged) {
             Map<String, String> details = new HashMap<String, String>();
+            // should do this nicer perhaps ?
+            if (hypervisorType == HypervisorType.Ovm3) {
+                Map<String, String> allParams = cmd.getFullUrlParams();
+                details.put("ovm3vip", allParams.get("ovm3vip"));
+                details.put("ovm3pool", allParams.get("ovm3pool"));
+                details.put("ovm3cluster", allParams.get("ovm3cluster"));
+            }
             details.put("cpuOvercommitRatio", CapacityManager.CpuOverprovisioningFactor.value().toString());
             details.put("memoryOvercommitRatio", CapacityManager.MemOverprovisioningFactor.value().toString());
             _clusterDetailsDao.persist(cluster.getId(), details);
@@ -873,7 +881,7 @@ public class ResourceManagerImpl extends ManagerBase implements ResourceManager,
         try {
             resourceStateTransitTo(host, ResourceState.Event.DeleteHost, _nodeId);
         } catch (NoTransitionException e) {
-            s_logger.debug("Cannot transmit host " + host.getId() + "to Enabled state", e);
+                    s_logger.debug("Cannot transmit host " + host.getId() + " to Enabled state", e);
         }
 
         // Delete the associated entries in host ref table
@@ -1158,7 +1166,7 @@ public class ResourceManagerImpl extends ManagerBase implements ResourceManager,
         ResourceState currentState = host.getResourceState();
         ResourceState nextState = currentState.getNextState(event);
         if (nextState == null) {
-            throw new NoTransitionException("No next resource state found for current state =" + currentState + " event =" + event);
+            throw new NoTransitionException("No next resource state found for current state = " + currentState + " event = " + event);
         }
 
         // TO DO - Make it more granular and have better conversion into capacity type

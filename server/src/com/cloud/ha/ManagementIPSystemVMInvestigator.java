@@ -42,7 +42,7 @@ public class ManagementIPSystemVMInvestigator extends AbstractInvestigatorImpl {
     private final NetworkModel _networkMgr = null;
 
     @Override
-    public Boolean isVmAlive(VirtualMachine vm, Host host) {
+    public boolean isVmAlive(VirtualMachine vm, Host host) throws UnknownVM {
         if (!vm.getType().isUsedBySystem()) {
             s_logger.debug("Not a System Vm, unable to determine state of " + vm + " returning null");
         }
@@ -53,13 +53,13 @@ public class ManagementIPSystemVMInvestigator extends AbstractInvestigatorImpl {
 
         if (vm.getHostId() == null) {
             s_logger.debug("There's no host id for " + vm);
-            return null;
+            throw new UnknownVM();
         }
 
         HostVO vmHost = _hostDao.findById(vm.getHostId());
         if (vmHost == null) {
             s_logger.debug("Unable to retrieve the host by using id " + vm.getHostId());
-            return null;
+            throw new UnknownVM();
         }
 
         List<? extends Nic> nics = _networkMgr.getNicsForTraffic(vm.getId(), TrafficType.Management);
@@ -67,7 +67,7 @@ public class ManagementIPSystemVMInvestigator extends AbstractInvestigatorImpl {
             if (s_logger.isDebugEnabled()) {
                 s_logger.debug("Unable to find a management nic, cannot ping this system VM, unable to determine state of " + vm + " returning null");
             }
-            return null;
+            throw new UnknownVM();
         }
 
         for (Nic nic : nics) {
@@ -78,10 +78,8 @@ public class ManagementIPSystemVMInvestigator extends AbstractInvestigatorImpl {
             List<Long> otherHosts = findHostByPod(vmHost.getPodId(), vm.getHostId());
             for (Long otherHost : otherHosts) {
                 Status vmState = testIpAddress(otherHost, nic.getIp4Address());
-                if (vmState == null) {
-                    // can't get information from that host, try the next one
-                    continue;
-                }
+                assert vmState != null;
+                // In case of Status.Unknown, next host will be tried
                 if (vmState == Status.Up) {
                     if (s_logger.isDebugEnabled()) {
                         s_logger.debug("successfully pinged vm's private IP (" + vm.getPrivateIpAddress() + "), returning that the VM is up");
@@ -91,7 +89,8 @@ public class ManagementIPSystemVMInvestigator extends AbstractInvestigatorImpl {
                     // We can't ping the VM directly...if we can ping the host, then report the VM down.
                     // If we can't ping the host, then we don't have enough information.
                     Status vmHostState = testIpAddress(otherHost, vmHost.getPrivateIpAddress());
-                    if ((vmHostState != null) && (vmHostState == Status.Up)) {
+                    assert vmHostState != null;
+                    if (vmHostState == Status.Up) {
                         if (s_logger.isDebugEnabled()) {
                             s_logger.debug("successfully pinged vm's host IP (" + vmHost.getPrivateIpAddress() +
                                 "), but could not ping VM, returning that the VM is down");
@@ -105,7 +104,7 @@ public class ManagementIPSystemVMInvestigator extends AbstractInvestigatorImpl {
         if (s_logger.isDebugEnabled()) {
             s_logger.debug("unable to determine state of " + vm + " returning null");
         }
-        return null;
+        throw new UnknownVM();
     }
 
     @Override

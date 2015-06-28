@@ -452,6 +452,7 @@ under the License.
 'message.configuring.public.traffic': '<fmt:message key="message.configuring.public.traffic" />',
 'message.configuring.storage.traffic': '<fmt:message key="message.configuring.storage.traffic" />',
 'message.confirm.action.force.reconnect': '<fmt:message key="message.confirm.action.force.reconnect" />',
+'message.confirm.delete.BigSwitchBcf': '<fmt:message key="message.confirm.delete.BigSwitchBcf" />',
 'message.confirm.delete.F5': '<fmt:message key="message.confirm.delete.F5" />',
 'message.confirm.delete.BrocadeVcs': '<fmt:message key="message.confirm.delete.BrocadeVcs" />',
 'message.confirm.delete.NetScaler': '<fmt:message key="message.confirm.delete.NetScaler" />',
@@ -712,6 +713,7 @@ under the License.
 'label.start.lb.vm': '<fmt:message key="label.start.lb.vm" />',
 'label.stop.lb.vm': '<fmt:message key="label.stop.lb.vm" />',
 'label.migrate.lb.vm': '<fmt:message key="label.migrate.lb.vm" />',
+'label.migrate.volume': '<fmt:message key="label.migrate.volume" />',
 'label.vpc.virtual.router': '<fmt:message key="label.vpc.virtual.router" />',
 'label.ovs': '<fmt:message key="label.ovs" />',
 'label.gslb.service': '<fmt:message key="label.gslb.service" />',
@@ -758,8 +760,9 @@ under the License.
 'label.nicira.nvp.details': '<fmt:message key="label.nicira.nvp.details" />',
 'label.added.brocade.vcs.switch': '<fmt:message key="label.added.brocade.vcs.switch" />',
 'label.brocade.vcs.details': '<fmt:message key="label.brocade.vcs.details" />',
-'label.added.new.bigswitch.vns.controller': '<fmt:message key="label.added.new.bigswitch.vns.controller" />',
-'label.bigswitch.vns.details': '<fmt:message key="label.bigswitch.vns.details" />',
+'label.added.new.bigswitch.bcf.controller': '<fmt:message key="label.added.new.bigswitch.bcf.controller" />',
+'label.bigswitch.bcf.details': '<fmt:message key="label.bigswitch.bcf.details" />',
+'label.bigswitch.bcf.nat': '<fmt:message key="label.bigswitch.bcf.nat" />',
 'label.dedicate': '<fmt:message key="label.dedicate" />',
 'label.dedicate.pod': '<fmt:message key="label.dedicate.pod" />',
 'label.pod.dedicated': '<fmt:message key="label.pod.dedicated" />',
@@ -1051,6 +1054,10 @@ under the License.
 'label.of.month': '<fmt:message key="label.of.month" />',
 'label.minutes.past.hour': '<fmt:message key="label.minutes.past.hour" />',
 'label.snapshots': '<fmt:message key="label.snapshots" />',
-'label.add.private.gateway': '<fmt:message key="label.add.private.gateway" />'
+'label.add.private.gateway': '<fmt:message key="label.add.private.gateway" />',
+'label.ovm3.pool': '<fmt:message key="label.ovm3.pool" />',
+'label.ovm3.cluster': '<fmt:message key="label.ovm3.cluster" />',
+'label.ovm3.vip': '<fmt:message key="label.ovm3.vip" />',
+'label.local.storage.enabled.system.vms': '<fmt:message key="label.local.storage.enabled.system.vms" />'
 });
 </script>

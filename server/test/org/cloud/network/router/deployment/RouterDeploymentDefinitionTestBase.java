@@ -43,6 +43,8 @@ import com.cloud.network.router.NetworkHelper;
 import com.cloud.network.router.VpcNetworkHelperImpl;
 import com.cloud.offerings.NetworkOfferingVO;
 import com.cloud.offerings.dao.NetworkOfferingDao;
+import com.cloud.service.ServiceOfferingVO;
+import com.cloud.service.dao.ServiceOfferingDao;
 import com.cloud.user.Account;
 import com.cloud.user.AccountManager;
 import com.cloud.vm.VirtualMachineProfile.Param;
@@ -57,6 +59,7 @@ public class RouterDeploymentDefinitionTestBase {
     protected static final String ONLY_THE_PROVIDED_AS_DEFAULT_DESTINATION_WAS_EXPECTED = "Only the provided as default destination was expected";
 
     protected static final long OFFERING_ID = 16L;
+    protected static final long DEFAULT_OFFERING_ID = 17L;
     protected static final Long DATA_CENTER_ID = 100l;
     protected static final Long NW_ID_1 = 101l;
     protected static final Long NW_ID_2= 102l;
@@ -92,6 +95,8 @@ public class RouterDeploymentDefinitionTestBase {
     @Mock
     protected NetworkOfferingDao mockNetworkOfferingDao;
     @Mock
+    protected ServiceOfferingDao mockServiceOfferingDao;
+    @Mock
     protected AccountManager mockAccountMgr;
 
     // Instance specific parameters to use during build
@@ -112,6 +117,8 @@ public class RouterDeploymentDefinitionTestBase {
     @Mock
     NetworkOfferingVO mockNwOfferingVO;
     @Mock
+    ServiceOfferingVO mockSvcOfferingVO;
+    @Mock
     protected Account mockOwner;
 
 
@@ -123,12 +130,12 @@ public class RouterDeploymentDefinitionTestBase {
 
 
     protected void initMocks() {
-        when(this.mockDestination.getDataCenter()).thenReturn(this.mockDataCenter);
-        when(this.mockDataCenter.getId()).thenReturn(DATA_CENTER_ID);
-        when(this.mockPod.getId()).thenReturn(POD_ID1);
-        when(this.mockHostPodVO1.getId()).thenReturn(POD_ID1);
-        when(this.mockHostPodVO2.getId()).thenReturn(POD_ID2);
-        when(this.mockHostPodVO3.getId()).thenReturn(POD_ID3);
-        when(this.mockNw.getId()).thenReturn(NW_ID_1);
+        when(mockDestination.getDataCenter()).thenReturn(mockDataCenter);
+        when(mockDataCenter.getId()).thenReturn(DATA_CENTER_ID);
+        when(mockPod.getId()).thenReturn(POD_ID1);
+        when(mockHostPodVO1.getId()).thenReturn(POD_ID1);
+        when(mockHostPodVO2.getId()).thenReturn(POD_ID2);
+        when(mockHostPodVO3.getId()).thenReturn(POD_ID3);
+        when(mockNw.getId()).thenReturn(NW_ID_1);
     }
 }

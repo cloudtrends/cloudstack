@@ -53,12 +53,12 @@ public class UserVmDomRInvestigator extends AbstractInvestigatorImpl {
     private final VpcVirtualNetworkApplianceManager _vnaMgr = null;
 
     @Override
-    public Boolean isVmAlive(VirtualMachine vm, Host host) {
+    public boolean isVmAlive(VirtualMachine vm, Host host) throws UnknownVM {
         if (vm.getType() != VirtualMachine.Type.User) {
             if (s_logger.isDebugEnabled()) {
                 s_logger.debug("Not a User Vm, unable to determine state of " + vm + " returning null");
             }
-            return null;
+            throw new UnknownVM();
         }
 
         if (s_logger.isDebugEnabled()) {
@@ -100,7 +100,7 @@ public class UserVmDomRInvestigator extends AbstractInvestigatorImpl {
         if (s_logger.isDebugEnabled()) {
             s_logger.debug("Returning null since we're unable to determine state of " + vm);
         }
-        return null;
+        throw new UnknownVM();
     }
 
     @Override
@@ -116,14 +116,12 @@ public class UserVmDomRInvestigator extends AbstractInvestigatorImpl {
         List<Long> otherHosts = findHostByPod(agent.getPodId(), agent.getId());
 
         for (Long hostId : otherHosts) {
-
             if (s_logger.isDebugEnabled()) {
                 s_logger.debug("sending ping from (" + hostId + ") to agent's host ip address (" + agent.getPrivateIpAddress() + ")");
             }
             Status hostState = testIpAddress(hostId, agent.getPrivateIpAddress());
-            if (hostState == null) {
-                continue;
-            }
+            assert hostState != null;
+            // In case of Status.Unknown, next host will be tried
             if (hostState == Status.Up) {
                 if (s_logger.isDebugEnabled()) {
                     s_logger.debug("ping from (" + hostId + ") to agent's host ip address (" + agent.getPrivateIpAddress() +
@@ -134,7 +132,7 @@ public class UserVmDomRInvestigator extends AbstractInvestigatorImpl {
                 if (s_logger.isDebugEnabled()) {
                     s_logger.debug("returning host state: " + hostState);
                 }
-                return hostState;
+                return Status.Down;
             }
         }
 

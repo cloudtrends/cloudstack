@@ -32,8 +32,11 @@ public abstract class BaseUpdateTemplateOrIsoCmd extends BaseCmd {
     //////////////// API parameters /////////////////////
     /////////////////////////////////////////////////////
 
-    @Parameter(name = ApiConstants.BOOTABLE, type = CommandType.BOOLEAN, description = "true if image is bootable, false otherwise")
+    @Parameter(name = ApiConstants.BOOTABLE, type = CommandType.BOOLEAN, description = "true if image is bootable, false otherwise; available only for updateIso API")
     private Boolean bootable;
+
+    @Parameter(name = ApiConstants.REQUIRES_HVM, type = CommandType.BOOLEAN, description = "true if the template requres HVM, false otherwise; available only for updateTemplate API")
+    private Boolean requiresHvm;
 
     @Parameter(name = ApiConstants.DISPLAY_TEXT, type = CommandType.STRING, description = "the display text of the image", length = 4096)
     private String displayText;
@@ -67,15 +70,19 @@ public abstract class BaseUpdateTemplateOrIsoCmd extends BaseCmd {
     @Parameter(name = ApiConstants.ROUTING, type = CommandType.BOOLEAN, description = "true if the template type is routing i.e., if template is used to deploy router")
     protected Boolean isRoutingType;
 
-    @Parameter(name = ApiConstants.DETAILS, type = CommandType.MAP, description = "Details in key/value pairs.")
+    @Parameter(name = ApiConstants.DETAILS, type = CommandType.MAP, description = "Details in key/value pairs using format details[i].keyname=keyvalue. Example: details[0].hypervisortoolsversion=xenserver61")
     protected Map details;
 
     /////////////////////////////////////////////////////
     /////////////////// Accessors ///////////////////////
     /////////////////////////////////////////////////////
 
-    public Boolean isBootable() {
+    public Boolean getBootable() {
         return bootable;
+    }
+
+    public Boolean getRequiresHvm() {
+        return requiresHvm;
     }
 
     public String getDisplayText() {
@@ -94,7 +101,7 @@ public abstract class BaseUpdateTemplateOrIsoCmd extends BaseCmd {
         return osTypeId;
     }
 
-    public Boolean isPasswordEnabled() {
+    public Boolean getPasswordEnabled() {
         return passwordEnabled;
     }
 

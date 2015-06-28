@@ -28,13 +28,13 @@ architectures = {
     :i386 => {
         :os_type_id => 'Debian',
         :iso_file => 'iso-cd/debian-7.8.0-i386-netinst.iso',
-        :iso_src => 'http://cdimage.debian.org/debian-cd/7.8.0/i386/iso-cd/debian-7.8.0-i386-netinst.iso',
+        :iso_src => 'http://cdimage.debian.org/cdimage/archive/7.8.0/i386/iso-cd/debian-7.8.0-i386-netinst.iso',
         :iso_md5 => '0d2f88d23a9d5945f5bc0276830c7d2c',
     },
     :amd64 => {
         :os_type_id => 'Debian_64',
         :iso_file => 'debian-7.8.0-amd64-netinst.iso',
-        :iso_src => 'http://cdimage.debian.org/debian-cd/7.8.0/amd64/iso-cd/debian-7.8.0-amd64-netinst.iso',
+        :iso_src => 'http://cdimage.debian.org/cdimage/archive/7.8.0/amd64/iso-cd/debian-7.8.0-amd64-netinst.iso',
         :iso_md5 => 'a91fba5001cf0fbccb44a7ae38c63b6e'
     }
 }
@@ -42,7 +42,7 @@ architectures = {
 config = {
     :cpu_count => '1',
     :memory_size => '256',
-    :disk_size => '2500', :disk_format => 'VDI', :hostiocache => 'off',
+    :disk_size => '3000', :disk_format => 'VDI', :hostiocache => 'off',
     :iso_download_timeout => '1200',
     :boot_wait => '10',
     :boot_cmd_sequence => [
@@ -88,6 +88,7 @@ config = {
         '../../cloud_scripts_shar_archive.sh',
         'configure_systemvm_services.sh',
         'authorized_keys.sh',
+        'configure_persistent_config.sh',
         # cleanup & space-saving
         'cleanup.sh',
         'zerodisk.sh'

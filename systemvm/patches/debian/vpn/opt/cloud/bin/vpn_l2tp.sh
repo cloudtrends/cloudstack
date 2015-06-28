@@ -170,11 +170,11 @@ add_l2tp_ipsec_user() {
    local u=$1
    local passwd=$2
 
-   uptodate=$(grep "^$u \* $passwd \*$" /etc/ppp/chap-secrets)
+   uptodate=$(grep "^$u \* \"$passwd\" \*$" /etc/ppp/chap-secrets)
    if [ "$uptodate" == "" ]
    then
        remove_l2tp_ipsec_user $u
-       echo "$u * $passwd *" >> /etc/ppp/chap-secrets
+       echo "$u * \"$passwd\" *" >> /etc/ppp/chap-secrets
    fi
 }
 
@@ -226,12 +226,12 @@ done
 
 if [ "$dev" == "" ]
 then
-    $dev="eth2"
+    dev="eth2"
 fi
 
 if [ "$cidr" == "" ]
 then
-    $cidr=$(get_intf_ip "eth0")
+    cidr=$(get_intf_ip "eth0")
 fi
 
 [ "$create$destroy" == "11" ] || [ "$create$destroy$useradd$userdel" == "" ] && usage && exit 2

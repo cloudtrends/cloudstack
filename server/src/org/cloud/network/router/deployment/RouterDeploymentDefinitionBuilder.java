@@ -45,6 +45,7 @@ import com.cloud.network.vpc.VpcManager;
 import com.cloud.network.vpc.dao.VpcDao;
 import com.cloud.network.vpc.dao.VpcOfferingDao;
 import com.cloud.offerings.dao.NetworkOfferingDao;
+import com.cloud.service.dao.ServiceOfferingDao;
 import com.cloud.user.Account;
 import com.cloud.user.AccountManager;
 import com.cloud.vm.DomainRouterVO;
@@ -67,6 +68,8 @@ public class RouterDeploymentDefinitionBuilder {
     private VirtualRouterProviderDao vrProviderDao;
     @Inject
     private NetworkOfferingDao networkOfferingDao;
+    @Inject
+    private ServiceOfferingDao serviceOfferingDao;
     @Inject
     private IpAddressManager ipAddrMgr;
     @Inject
@@ -120,6 +123,7 @@ public class RouterDeploymentDefinitionBuilder {
         routerDeploymentDefinition.networkModel = networkModel;
         routerDeploymentDefinition.vrProviderDao = vrProviderDao;
         routerDeploymentDefinition.networkOfferingDao = networkOfferingDao;
+        routerDeploymentDefinition.serviceOfferingDao = serviceOfferingDao;
         routerDeploymentDefinition.ipAddrMgr = ipAddrMgr;
         routerDeploymentDefinition.vmDao = vmDao;
         routerDeploymentDefinition.podDao = podDao;
@@ -128,7 +132,7 @@ public class RouterDeploymentDefinitionBuilder {
         routerDeploymentDefinition.nicDao = nicDao;
         routerDeploymentDefinition.ipv6Dao = ipv6Dao;
         routerDeploymentDefinition.ipAddressDao = ipAddressDao;
-        routerDeploymentDefinition.offeringId = offeringId;
+        routerDeploymentDefinition.serviceOfferingId = offeringId;
 
         routerDeploymentDefinition.nwHelper = nwHelper;
 
@@ -160,21 +164,10 @@ public class RouterDeploymentDefinitionBuilder {
         protected DeployDestination dest;
         protected Account owner;
         protected Map<Param, Object> params;
-        protected boolean isRedundant;
         protected List<DomainRouterVO> routers = new ArrayList<>();
 
         protected IntermediateStateBuilder(final RouterDeploymentDefinitionBuilder builder) {
             this.builder = builder;
-        }
-
-        public IntermediateStateBuilder makeRedundant() {
-            isRedundant = true;
-            return this;
-        }
-
-        public IntermediateStateBuilder setRedundant(final boolean isRedundant) {
-            this.isRedundant = isRedundant;
-            return this;
         }
 
         public IntermediateStateBuilder setVpc(final Vpc vpc) {
@@ -205,9 +198,9 @@ public class RouterDeploymentDefinitionBuilder {
         public RouterDeploymentDefinition build() {
             RouterDeploymentDefinition routerDeploymentDefinition = null;
             if (vpc != null) {
-                routerDeploymentDefinition = new VpcRouterDeploymentDefinition(vpc, dest, owner, params, isRedundant);
+                routerDeploymentDefinition = new VpcRouterDeploymentDefinition(guestNetwork, vpc, dest, owner, params);
             } else {
-                routerDeploymentDefinition = new RouterDeploymentDefinition(guestNetwork, dest, owner, params, isRedundant);
+                routerDeploymentDefinition = new RouterDeploymentDefinition(guestNetwork, dest, owner, params);
             }
 
             return builder.injectDependencies(routerDeploymentDefinition);

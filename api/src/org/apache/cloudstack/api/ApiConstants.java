@@ -48,6 +48,7 @@ public class ApiConstants {
     public static final String IP6_CIDR = "ip6cidr";
     public static final String CIDR_LIST = "cidrlist";
     public static final String CLEANUP = "cleanup";
+    public static final String MAKEREDUNDANTE = "makeredundant";
     public static final String CLUSTER_ID = "clusterid";
     public static final String CLUSTER_NAME = "clustername";
     public static final String CLUSTER_TYPE = "clustertype";
@@ -190,6 +191,7 @@ public class ApiConstants {
     public static final String PORTAL = "portal";
     public static final String PORTABLE_IP_ADDRESS = "portableipaddress";
     public static final String PORT_FORWARDING_SERVICE_ID = "portforwardingserviceid";
+    public static final String POST_URL = "postURL";
     public static final String PRIVATE_INTERFACE = "privateinterface";
     public static final String PRIVATE_IP = "privateip";
     public static final String PRIVATE_PORT = "privateport";
@@ -384,6 +386,7 @@ public class ApiConstants {
     public static final String KVM_NETWORK_LABEL = "kvmnetworklabel";
     public static final String VMWARE_NETWORK_LABEL = "vmwarenetworklabel";
     public static final String HYPERV_NETWORK_LABEL = "hypervnetworklabel";
+    public static final String OVM3_NETWORK_LABEL = "ovm3networklabel";
     public static final String NETWORK_SERVICE_PROVIDER_ID = "nspid";
     public static final String SERVICE_LIST = "servicelist";
     public static final String CAN_ENABLE_INDIVIDUAL_SERVICE = "canenableindividualservice";
@@ -449,7 +452,7 @@ public class ApiConstants {
     public static final String EXTERNAL_SWITCH_MGMT_DEVICE_NAME = "vsmdevicename";
     public static final String EXTERNAL_SWITCH_MGMT_DEVICE_STATE = "vsmdevicestate";
     // Would we need to have a capacity field for Cisco N1KV VSM? Max hosts managed by it perhaps? May remove this
-// later.
+    // later.
     public static final String EXTERNAL_SWITCH_MGMT_DEVICE_CAPACITY = "vsmdevicecapacity";
     public static final String CISCO_NEXUS_VSM_NAME = "vsmname";
     public static final String VSM_USERNAME = "vsmusername";
@@ -607,13 +610,18 @@ public class ApiConstants {
     public static final String REMAININGCAPACITY = "remainingcapacity";
     public static final String MAXCAPACITY = "maxcapacity";
     public static final String DISTRIBUTED_VPC_ROUTER = "distributedvpcrouter";
+    public static final String REDUNDANT_VPC_ROUTER = "redundantvpcrouter";
     public static final String READ_ONLY = "readonly";
     public static final String SUPPORTS_REGION_LEVEL_VPC = "supportsregionLevelvpc";
     public static final String SUPPORTS_STRECHED_L2_SUBNET = "supportsstrechedl2subnet";
     public static final String REGION_LEVEL_VPC = "regionlevelvpc";
     public static final String STRECHED_L2_SUBNET = "strechedl2subnet";
     public static final String NETWORK_SPANNED_ZONES = "zonesnetworkspans";
+    public static final String METADATA = "metadata";
     public static final String PHYSICAL_SIZE = "physicalsize";
+    public static final String OVM3_POOL = "ovm3pool";
+    public static final String OVM3_CLUSTER = "ovm3cluster";
+    public static final String OVM3_VIP = "ovm3vip";
 
     public enum HostDetails {
         all, capacity, events, stats, min;

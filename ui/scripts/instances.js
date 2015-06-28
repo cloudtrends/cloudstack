@@ -31,14 +31,17 @@
                 fields: {
                     name: {
                         label: 'label.name',
+                        docID: 'helpCreateInstanceSnapshotName',
                         isInput: true
                     },
                     description: {
                         label: 'label.description',
+                        docID: 'helpCreateInstanceSnapshotDescription',
                         isTextarea: true
                     },
                     snapshotMemory: {
                         label: 'label.vmsnapshot.memory',
+                        docID: 'helpCreateInstanceSnapshotMemory',
                         isBoolean: true,
                         isChecked: false,
                         isHidden: function(args) {
@@ -233,6 +236,9 @@
                                             });
                                         }
                                     }
+                                    array1.sort(function(a, b) {
+                                        return a.description.localeCompare(b.description);
+                                    });
                                     args.response.success({
                                         data: array1
                                     });
@@ -1755,6 +1761,9 @@
             				                            });
             				                        }
             				                    }
+                                                            array1.sort(function(a, b) {
+                                                                return a.description.localeCompare(b.description);
+                                                            });
             				                    args.response.success({
             				                        data: array1
             				                    });

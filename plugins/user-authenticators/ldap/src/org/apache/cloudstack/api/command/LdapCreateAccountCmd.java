@@ -16,6 +16,7 @@
 // under the License.
 package org.apache.cloudstack.api.command;
 
+import java.io.UnsupportedEncodingException;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.util.Map;
@@ -92,10 +93,10 @@ public class LdapCreateAccountCmd extends BaseCmd {
         Account account = _accountService.getActiveAccountByName(accountName, domainId);
         if (account == null) {
             return _accountService.createUserAccount(username, generatePassword(), user.getFirstname(), user.getLastname(), user.getEmail(), timezone, accountName, accountType,
-                    domainId, networkDomain, details, accountUUID, userUUID);
+                    domainId, networkDomain, details, accountUUID, userUUID, User.Source.LDAP);
         } else {
             User newUser = _accountService.createUser(username, generatePassword(), user.getFirstname(), user.getLastname(), user.getEmail(), timezone, accountName, domainId,
-                    userUUID);
+                    userUUID, User.Source.LDAP);
             return _accountService.getUserAccountById(newUser.getId());
         }
     }
@@ -143,8 +144,8 @@ public class LdapCreateAccountCmd extends BaseCmd {
             final SecureRandom randomGen = SecureRandom.getInstance("SHA1PRNG");
             final byte bytes[] = new byte[20];
             randomGen.nextBytes(bytes);
-            return Base64.encode(bytes).toString();
-        } catch (final NoSuchAlgorithmException e) {
+            return new String(Base64.encode(bytes), "UTF-8");
+        } catch (NoSuchAlgorithmException | UnsupportedEncodingException e) {
             throw new ServerApiException(ApiErrorCode.INTERNAL_ERROR, "Failed to generate random password");
         }
     }

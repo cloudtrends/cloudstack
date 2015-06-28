@@ -192,6 +192,7 @@ class TestBasicOperations(cloudstackTestCase):
     def setUpClass(cls):
         cls.testClient = super(TestBasicOperations, cls).getClsTestClient()
         cls.api_client = cls.testClient.getApiClient()
+        cls.hypervisor = cls.testClient.getHypervisorInfo().lower()
 
         # Fill services from the external config file
         cls.services = cls.testClient.getParsedTestDataConfig()
@@ -376,6 +377,9 @@ class TestBasicOperations(cloudstackTestCase):
         # 1. Step 4 should succeed
         # 2. Step 5 should fail
 
+        if value == VPC_NETWORK and self.hypervisor == 'hyperv':
+            self.skipTest("VPC is not supported on Hyper-V")
+
         self.account = Account.create(
             self.apiclient,
             self.services["account"],
@@ -398,6 +402,33 @@ class TestBasicOperations(cloudstackTestCase):
             id=virtual_machine.nic[0].id)
 
         NIC.removeIp(self.apiclient, ipaddressid=ipaddress_1.id)
+        #Following block is to verify
+        #1.Removing nic in shared network should mark allocated state to NULL in DB
+        #2.To make sure that re-add the same ip address to the same nic
+        #3.Remove the IP from the NIC
+        #All the above steps should succeed
+        if value == SHARED_NETWORK:
+            qresultset = self.dbclient.execute(
+                "select allocated from user_ip_address where public_ip_address = '%s';"
+                % str(ipaddress_1.ipaddress)
+            )
+            self.assertEqual(
+                qresultset[0][0],
+                None,
+                "Removing IP from nic didn't release the ip address from user_ip_address table"
+            )
+        else:
+            qresultset = self.dbclient.execute(
+                "select id from nic_secondary_ips where ip4_address = '%s';"
+                % str(ipaddress_1.ipaddress))
+            if len(qresultset):
+                self.fail("Failed to release the secondary ip from the nic")
+        ipaddress_2 = NIC.addIp(
+            self.apiclient,
+            id=virtual_machine.nic[0].id,
+            ipaddress=ipaddress_1.ipaddress
+        )
+        NIC.removeIp(self.apiclient, ipaddressid=ipaddress_2.id)
         try:
             NIC.removeIp(
                 self.apiclient,
@@ -455,6 +486,9 @@ class TestBasicOperations(cloudstackTestCase):
         # 4. Step 7 should fail
         # 5. Step 8 should fail
         # 6. Step 9 should fail
+
+        if value == VPC_NETWORK and self.hypervisor == 'hyperv':
+            self.skipTest("VPC is not supported on Hyper-V")
 
         self.account = Account.create(
             self.apiclient,
@@ -559,6 +593,9 @@ class TestBasicOperations(cloudstackTestCase):
         # Validations:
         # 1. All the operations should be successful
 
+        if value == VPC_NETWORK and self.hypervisor == 'hyperv':
+            self.skipTest("VPC is not supported on Hyper-V")
+
         child_domain = Domain.create(
             self.apiclient,
             services=self.services["domain"],
@@ -625,6 +662,7 @@ class TestNetworkRules(cloudstackTestCase):
     def setUpClass(cls):
         cls.testClient = super(TestNetworkRules, cls).getClsTestClient()
         cls.api_client = cls.testClient.getApiClient()
+        cls.hypervisor = cls.testClient.getHypervisorInfo().lower()
 
         # Fill services from the external config file
         cls.services = cls.testClient.getParsedTestDataConfig()
@@ -718,7 +756,7 @@ class TestNetworkRules(cloudstackTestCase):
         return
 
     @data(ISOLATED_NETWORK, SHARED_NETWORK, VPC_NETWORK)
-    @attr(tags=["advanced"])
+    @attr(tags=["advanced", "dvs"])
     def test_add_PF_rule(self, value):
         """ Add secondary IP to NIC of a VM"""
 
@@ -737,6 +775,9 @@ class TestNetworkRules(cloudstackTestCase):
         # 2. Step 5 should succeed
         # 3. Step 6 should succeed
         # 4. Step 7 should fail
+
+        if value == VPC_NETWORK and self.hypervisor == 'hyperv':
+            self.skipTest("VPC is not supported on Hyper-V")
 
         self.account = Account.create(
             self.apiclient,
@@ -806,7 +847,7 @@ class TestNetworkRules(cloudstackTestCase):
         return
 
     @data(ISOLATED_NETWORK, SHARED_NETWORK, VPC_NETWORK)
-    @attr(tags=["advanced"])
+    @attr(tags=["advanced", "dvs"])
     def test_delete_PF_nat_rule(self, value):
         """ Add secondary IP to NIC of a VM"""
 
@@ -822,6 +863,9 @@ class TestNetworkRules(cloudstackTestCase):
         # Validations:
         # 1. Step 5 should fail
         # 2. Step 6 should succeed
+
+        if value == VPC_NETWORK and self.hypervisor == 'hyperv':
+            self.skipTest("VPC is not supported on Hyper-V")
 
         self.account = Account.create(
             self.apiclient,
@@ -891,7 +935,7 @@ class TestNetworkRules(cloudstackTestCase):
         return
 
     @data(ISOLATED_NETWORK, SHARED_NETWORK, VPC_NETWORK)
-    @attr(tags=["advanced"])
+    @attr(tags=["advanced", "dvs"])
     def test_disassociate_ip_mapped_to_secondary_ip_through_PF_rule(
             self,
             value):
@@ -907,6 +951,9 @@ class TestNetworkRules(cloudstackTestCase):
 
         # Validations:
         # 1. Step 5 should succeed
+
+        if value == VPC_NETWORK and self.hypervisor == 'hyperv':
+            self.skipTest("VPC is not supported on Hyper-V")
 
         self.account = Account.create(
             self.apiclient,
@@ -960,7 +1007,7 @@ class TestNetworkRules(cloudstackTestCase):
         return
 
     @data(ISOLATED_NETWORK, SHARED_NETWORK, VPC_NETWORK)
-    @attr(tags=["advanced"])
+    @attr(tags=["advanced", "dvs"])
     def test_add_static_nat_rule(self, value):
         """ Add secondary IP to NIC of a VM"""
 
@@ -981,6 +1028,9 @@ class TestNetworkRules(cloudstackTestCase):
         # 3. Step 6 should succeed
         # 4. Step 7 should fail
         # 5. Step 8 should succeed
+
+        if value == VPC_NETWORK and self.hypervisor == 'hyperv':
+            self.skipTest("VPC is not supported on Hyper-V")
 
         self.account = Account.create(
             self.apiclient,
@@ -1059,7 +1109,7 @@ class TestNetworkRules(cloudstackTestCase):
         return
 
     @data(ISOLATED_NETWORK, SHARED_NETWORK, VPC_NETWORK)
-    @attr(tags=["advanced"])
+    @attr(tags=["advanced", "dvs"])
     def test_disable_static_nat(self, value):
         """ Add secondary IP to NIC of a VM"""
 
@@ -1074,6 +1124,9 @@ class TestNetworkRules(cloudstackTestCase):
         # Validations:
         # 1. Verify step 5 by listing seconday IP and checking the appropriate
         # flag
+
+        if value == VPC_NETWORK and self.hypervisor == 'hyperv':
+            self.skipTest("VPC is not supported on Hyper-V")
 
         self.account = Account.create(
             self.apiclient,
@@ -1151,6 +1204,7 @@ class TestVmNetworkOperations(cloudstackTestCase):
     def setUpClass(cls):
         cls.testClient = super(TestVmNetworkOperations, cls).getClsTestClient()
         cls.api_client = cls.testClient.getApiClient()
+        cls.hypervisor = cls.testClient.getHypervisorInfo().lower()
 
         # Fill services from the external config file
         cls.services = cls.testClient.getParsedTestDataConfig()
@@ -1257,6 +1311,9 @@ class TestVmNetworkOperations(cloudstackTestCase):
         # 7. Verify that nat rule does not exist and static nat is not enabled for
         #    secondary IP
 
+        if value == VPC_NETWORK and self.hypervisor == 'hyperv':
+            self.skipTest("VPC is not supported on Hyper-V")
+
         self.account = Account.create(
             self.apiclient,
             self.services["account"],
@@ -1361,6 +1418,9 @@ class TestVmNetworkOperations(cloudstackTestCase):
         #    static nat rule to 2nd private IP
         # 6. Destroy the virtual machine and recover it
         # 7. Verify that nat and static nat rules exist
+
+        if value == VPC_NETWORK and self.hypervisor == 'hyperv':
+            self.skipTest("VPC is not supported on Hyper-V")
 
         self.account = Account.create(
             self.apiclient,
@@ -1469,6 +1529,9 @@ class TestVmNetworkOperations(cloudstackTestCase):
         # 6. Restart the network with cleanup option True
         # 7. Verify that nat and static nat rules exist after network restart
 
+        if value == VPC_NETWORK and self.hypervisor == 'hyperv':
+            self.skipTest("VPC is not supported on Hyper-V")
+
         self.account = Account.create(
             self.apiclient,
             self.services["account"],
@@ -1560,6 +1623,9 @@ class TestVmNetworkOperations(cloudstackTestCase):
         # 6. Restart the network with cleanup option False
         # 7. Verify that nat and static nat rules exist after network restart
 
+        if value == VPC_NETWORK and self.hypervisor == 'hyperv':
+            self.skipTest("VPC is not supported on Hyper-V")
+
         self.account = Account.create(
             self.apiclient,
             self.services["account"],
@@ -1650,6 +1716,9 @@ class TestVmNetworkOperations(cloudstackTestCase):
         #    static nat rule to 2nd private IP
         # 6. Reboot router VM
         # 7. Verify that nat and static nat rules exist after router restart
+
+        if value == VPC_NETWORK and self.hypervisor == 'hyperv':
+            self.skipTest("VPC is not supported on Hyper-V")
 
         self.account = Account.create(
             self.apiclient,

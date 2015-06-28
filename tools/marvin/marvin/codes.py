@@ -54,6 +54,9 @@ Snapshot States - END
 
 RECURRING = "RECURRING"
 ENABLED = "Enabled"
+DISABLED = "Disabled"
+ENABLE = "Enable"
+DISABLE = "Disable"
 NETWORK_OFFERING = "network_offering"
 ROOT = "ROOT"
 INVALID_INPUT = "INVALID INPUT"
@@ -88,6 +91,7 @@ ERROR_NO_HOST_FOR_MIGRATION = \
     "please ensure setup has required no. of hosts"
 NAT_RULE = "nat rule"
 STATIC_NAT_RULE = "static nat rule"
+LB_RULE = "Load Balancer Rule"
 UNKNOWN = "UNKNOWN"
 FAULT = "FAULT"
 MASTER = "MASTER"
@@ -110,3 +114,37 @@ CHILD_DOMAIN_ADMIN="child domain admin"
 Network states
 '''
 ALLOCATED = "Allocated"
+
+'''
+Storage Tags
+'''
+ZONETAG1 = "zwps1"
+ZONETAG2 = "zwps2"
+CLUSTERTAG1 = "cwps1"
+CLUSTERTAG2 = "cwps2"
+
+'''
+Traffic Types
+'''
+PUBLIC_TRAFFIC = "public"
+GUEST_TRAFFIC = "guest"
+MANAGEMENT_TRAFFIC = "management"
+STORAGE_TRAFFIC = "storage"
+
+'''
+Switch Type
+'''
+VMWAREDVS = "vmwaredvs"
+
+'''
+Storage Pools State
+'''
+
+UP = "up"
+
+'''
+Storage Pools Scope
+'''
+
+CLUSTER = "cluster"
+

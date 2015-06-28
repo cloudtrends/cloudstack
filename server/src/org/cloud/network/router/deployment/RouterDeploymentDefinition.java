@@ -23,6 +23,7 @@ import java.util.Map;
 import org.apache.cloudstack.engine.orchestration.service.NetworkOrchestrationService;
 import org.apache.log4j.Logger;
 
+import com.cloud.configuration.ConfigurationManagerImpl;
 import com.cloud.dc.DataCenter.NetworkType;
 import com.cloud.dc.HostPodVO;
 import com.cloud.dc.Pod;
@@ -52,7 +53,10 @@ import com.cloud.network.dao.VirtualRouterProviderDao;
 import com.cloud.network.router.NetworkHelper;
 import com.cloud.network.router.VirtualRouter.Role;
 import com.cloud.network.vpc.Vpc;
+import com.cloud.offering.ServiceOffering;
 import com.cloud.offerings.dao.NetworkOfferingDao;
+import com.cloud.service.ServiceOfferingVO;
+import com.cloud.service.dao.ServiceOfferingDao;
 import com.cloud.user.Account;
 import com.cloud.user.AccountManager;
 import com.cloud.utils.db.DB;
@@ -71,12 +75,16 @@ import com.cloud.vm.dao.VMInstanceDao;
 public class RouterDeploymentDefinition {
     private static final Logger logger = Logger.getLogger(RouterDeploymentDefinition.class);
 
+    protected static final int LIMIT_NUMBER_OF_ROUTERS = 5;
+    protected static final int MAX_NUMBER_OF_ROUTERS = 2;
+
     protected NetworkDao networkDao;
     protected DomainRouterDao routerDao;
     protected PhysicalNetworkServiceProviderDao physicalProviderDao;
     protected NetworkModel networkModel;
     protected VirtualRouterProviderDao vrProviderDao;
     protected NetworkOfferingDao networkOfferingDao;
+    protected ServiceOfferingDao serviceOfferingDao;
     protected IpAddressManager ipAddrMgr;
     protected VMInstanceDao vmDao;
     protected HostPodDao podDao;
@@ -92,25 +100,24 @@ public class RouterDeploymentDefinition {
     protected DeployDestination dest;
     protected Account owner;
     protected Map<Param, Object> params;
-    protected boolean isRedundant;
     protected DeploymentPlan plan;
     protected List<DomainRouterVO> routers = new ArrayList<>();
-    protected Long offeringId;
+    protected Long serviceOfferingId;
     protected Long tableLockId;
     protected boolean isPublicNetwork;
     protected PublicIp sourceNatIp;
 
-    protected RouterDeploymentDefinition(final Network guestNetwork, final DeployDestination dest, final Account owner, final Map<Param, Object> params, final boolean isRedundant) {
+    protected RouterDeploymentDefinition(final Network guestNetwork, final DeployDestination dest,
+            final Account owner, final Map<Param, Object> params) {
 
         this.guestNetwork = guestNetwork;
         this.dest = dest;
         this.owner = owner;
         this.params = params;
-        this.isRedundant = isRedundant;
     }
 
-    public Long getOfferingId() {
-        return offeringId;
+    public Long getServiceOfferingId() {
+        return serviceOfferingId;
     }
 
     public Vpc getVpc() {
@@ -134,7 +141,7 @@ public class RouterDeploymentDefinition {
     }
 
     public boolean isRedundant() {
-        return isRedundant;
+        return guestNetwork.isRedundant();
     }
 
     public DeploymentPlan getPlan() {
@@ -197,6 +204,7 @@ public class RouterDeploymentDefinition {
         try {
             lock();
             checkPreconditions();
+
             // dest has pod=null, for Basic Zone findOrDeployVRs for all Pods
             final List<DeployDestination> destinations = findDestinations();
 
@@ -280,14 +288,14 @@ public class RouterDeploymentDefinition {
 
     protected int getNumberOfRoutersToDeploy() {
         // TODO Are we sure this makes sense? Somebody said 5 was too many?
-        if (routers.size() >= 5) {
+        if (routers.size() >= LIMIT_NUMBER_OF_ROUTERS) {
             logger.error("Too many redundant routers!");
         }
 
         // If old network is redundant but new is single router, then
         // routers.size() = 2 but routerCount = 1
         int routersExpected = 1;
-        if (isRedundant) {
+        if (isRedundant()) {
             routersExpected = 2;
         }
         return routersExpected < routers.size() ? 0 : routersExpected - routers.size();
@@ -312,7 +320,7 @@ public class RouterDeploymentDefinition {
         isPublicNetwork = networkModel.isProviderSupportServiceInNetwork(guestNetwork.getId(), Service.SourceNat, Provider.VirtualRouter);
 
         boolean canProceed = true;
-        if (isRedundant && !isPublicNetwork) {
+        if (isRedundant() && !isPublicNetwork) {
             // TODO Shouldn't be this throw an exception instead of log error and empty list of routers
             logger.error("Didn't support redundant virtual router without public network!");
             routers = new ArrayList<DomainRouterVO>();
@@ -331,15 +339,14 @@ public class RouterDeploymentDefinition {
      * @throws InsufficientCapacityException
      * @throws ResourceUnavailableException
      */
-    protected void executeDeployment() throws ConcurrentOperationException, InsufficientCapacityException, ResourceUnavailableException {
-        // Check current redundant routers, if possible(all routers are
-        // stopped), reset the priority
+    protected void executeDeployment()
+            throws ConcurrentOperationException, InsufficientCapacityException, ResourceUnavailableException {
+        //Check current redundant routers, if possible(all routers are stopped), reset the priority
         planDeploymentRouters();
-        setupPriorityOfRedundantRouter();
 
         if (getNumberOfRoutersToDeploy() > 0 && prepareDeployment()) {
             findVirtualProvider();
-            findOfferingId();
+            findServiceOfferingId();
             findSourceNatIP();
             deployAllVirtualRouters();
         }
@@ -352,10 +359,15 @@ public class RouterDeploymentDefinition {
         }
     }
 
-    protected void findOfferingId() {
-        Long networkOfferingId = networkOfferingDao.findById(guestNetwork.getNetworkOfferingId()).getServiceOfferingId();
-        if (networkOfferingId != null) {
-            offeringId = networkOfferingId;
+    protected void findDefaultServiceOfferingId() {
+        ServiceOfferingVO serviceOffering = serviceOfferingDao.findDefaultSystemOffering(ServiceOffering.routerDefaultOffUniqueName, ConfigurationManagerImpl.SystemVMUseLocalStorage.valueIn(dest.getDataCenter().getId()));
+        serviceOfferingId = serviceOffering.getId();
+    }
+
+    protected void findServiceOfferingId() {
+        serviceOfferingId = networkOfferingDao.findById(guestNetwork.getNetworkOfferingId()).getServiceOfferingId();
+        if (serviceOfferingId == null) {
+            findDefaultServiceOfferingId();
         }
     }
 
@@ -376,11 +388,11 @@ public class RouterDeploymentDefinition {
     }
 
     protected void deployAllVirtualRouters() throws ConcurrentOperationException, InsufficientCapacityException, ResourceUnavailableException {
-        int routersToDeploy = getNumberOfRoutersToDeploy();
+        final int routersToDeploy = getNumberOfRoutersToDeploy();
         for (int i = 0; i < routersToDeploy; i++) {
             // Don't start the router as we are holding the network lock that
             // needs to be released at the end of router allocation
-            DomainRouterVO router = nwHelper.deployRouter(this, false);
+            final DomainRouterVO router = nwHelper.deployRouter(this, false);
 
             if (router != null) {
                 routerDao.addRouterToGuestNetwork(router, guestNetwork);
@@ -438,20 +450,5 @@ public class RouterDeploymentDefinition {
         }
 
         return needReset;
-    }
-
-    /**
-     * Only for redundant deployment and if any routers needed reset, we shall
-     * reset all routers priorities
-     */
-    protected void setupPriorityOfRedundantRouter() {
-        if (isRedundant && routersNeedReset()) {
-            for (final DomainRouterVO router : routers) {
-                // getUpdatedPriority() would update the value later
-                router.setPriority(0);
-                router.setIsPriorityBumpUp(false);
-                routerDao.update(router.getId(), router);
-            }
-        }
     }
 }

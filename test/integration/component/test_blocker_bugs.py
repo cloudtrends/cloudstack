@@ -325,7 +325,7 @@ class TestNATRules(cloudstackTestCase):
         except Exception as e:
             raise Exception("Warning: Exception during cleanup : %s" % e)
 
-    @attr(tags=["advanced"], required_hardware="false")
+    @attr(tags=["advanced", "dvs"], required_hardware="false")
     def test_01_firewall_rules_port_fw(self):
         """"Checking firewall rules deletion after static NAT disable"""
 
@@ -742,10 +742,12 @@ class TestTemplates(cloudstackTestCase):
                             cls.zone.id,
                             cls.services["ostype"]
                             )
-        if cls.hypervisor.lower() in ['lxc']:
-            raise unittest.SkipTest("Template creation from root volume is not supported in LXC")
-        cls.services["virtual_machine"]["zoneid"] = cls.zone.id
+        cls.templateSupported = True
         cls._cleanup = []
+        if cls.hypervisor.lower() in ['lxc']:
+            cls.templateSupported = False
+            return
+        cls.services["virtual_machine"]["zoneid"] = cls.zone.id
         try:
             cls.account = Account.create(
                             cls.api_client,
@@ -802,6 +804,8 @@ class TestTemplates(cloudstackTestCase):
         self.apiclient = self.testClient.getApiClient()
         self.dbclient = self.testClient.getDbConnection()
         self.cleanup = []
+        if not self.templateSupported:
+            self.skipTest("Template creation from root volume is not supported in LXC")
         return
 
     def tearDown(self):
@@ -1019,6 +1023,8 @@ class TestDataPersistency(cloudstackTestCase):
         cls.zone = get_zone(cls.api_client, cls.testClient.getZoneForTests())
         cls.domain = get_domain(cls.api_client)
         cls.services['mode'] = cls.zone.networktype
+        cls.templateSupported = True
+        cls.cleanup = []
         template = get_template(
                             cls.api_client,
                             cls.zone.id,
@@ -1026,7 +1032,8 @@ class TestDataPersistency(cloudstackTestCase):
                             )
         cls.hypervisor = cls.testClient.getHypervisorInfo()
         if cls.hypervisor.lower() in ['lxc']:
-            raise unittest.SkipTest("Template creation from root volume is not supported in LXC")
+            cls.templateSupported = False
+            return
         cls.services["virtual_machine"]["zoneid"] = cls.zone.id
 
         #Create an account, network, VM and IP addresses
@@ -1071,6 +1078,8 @@ class TestDataPersistency(cloudstackTestCase):
 
     def setUp(self):
         self.apiclient = self.testClient.getApiClient()
+        if not self.templateSupported:
+            self.skipTest("Template creation from root volume is not supported in LXC")
         return
 
     def tearDown(self):

@@ -61,6 +61,7 @@ import com.cloud.cluster.ManagementServerHost;
 import com.cloud.utils.DateUtil;
 import com.cloud.utils.Pair;
 import com.cloud.utils.Predicate;
+import com.cloud.utils.StringUtils;
 import com.cloud.utils.component.ComponentLifecycle;
 import com.cloud.utils.component.ManagerBase;
 import com.cloud.utils.concurrency.NamedThreadFactory;
@@ -179,7 +180,7 @@ public class AsyncJobManagerImpl extends ManagerBase implements AsyncJobManager,
         publishOnEventBus(job, "submit");
         scheduleExecution(job, scheduleJobExecutionInContext);
         if (s_logger.isDebugEnabled()) {
-            s_logger.debug("submit async job-" + job.getId() + ", details: " + job.toString());
+            s_logger.debug("submit async job-" + job.getId() + ", details: " + StringUtils.cleanString(job.toString()));
         }
         return job.getId();
     }
@@ -518,7 +519,7 @@ public class AsyncJobManagerImpl extends ManagerBase implements AsyncJobManager,
 
                     // execute the job
                     if (s_logger.isDebugEnabled()) {
-                        s_logger.debug("Executing " + job);
+                        s_logger.debug("Executing " + StringUtils.cleanString(job.toString()));
                     }
 
                     if ((getAndResetPendingSignals(job) & AsyncJob.Constants.SIGNAL_MASK_WAKEUP) != 0) {
@@ -553,7 +554,6 @@ public class AsyncJobManagerImpl extends ManagerBase implements AsyncJobManager,
                         if (job.getSyncSource() != null) {
                             // here check queue item one more time to double make sure that queue item is removed in case of any uncaught exception
                             _queueMgr.purgeItem(job.getSyncSource().getId());
-                            checkQueue(job.getSyncSource().getQueueId());
                         }
 
                         try {
@@ -698,7 +698,7 @@ public class AsyncJobManagerImpl extends ManagerBase implements AsyncJobManager,
 
     @Override
     public Object unmarshallResultObject(AsyncJob job) {
-        if(job.getResult() != null)
+        if(job != null && job.getResult() != null)
             return JobSerializerHelper.fromObjectSerializedString(job.getResult());
         return null;
     }
