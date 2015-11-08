@@ -30,16 +30,14 @@
 # eth1 public ip
 # eth2+ Guest networks
 # -------------------------------------------------------------------- #
-import sys
 import os
-from pprint import pprint
-from CsDatabag import CsDataBag, CsCmdLine
 import logging
 import CsHelper
 from CsFile import CsFile
-from CsConfig import CsConfig
 from CsProcess import CsProcess
 from CsApp import CsPasswdSvc
+from CsAddress import CsDevice
+from CsRoute import CsRoute
 import socket
 from time import sleep
 
@@ -64,6 +62,7 @@ class CsRedundant(object):
     def __init__(self, config):
         self.cl = config.cmdline()
         self.address = config.address()
+        self.config = config
 
     def set(self):
         logging.debug("Router redundancy status is %s", self.cl.is_redundant())
@@ -85,12 +84,8 @@ class CsRedundant(object):
         # No redundancy if there is no guest network
         if guest is None:
             self._redundant_off()
-            # Bring up the public Interface(s)
-            if self.cl.is_master():
-                for obj in [o for o in self.address.get_ips() if o.is_public()]:
-                    print obj.get_device()
-                    self.check_is_up(obj.get_device())
             return
+
         CsHelper.mkdir(self.CS_RAMDISK_DIR, 0755, False)
         CsHelper.mount_tmpfs(self.CS_RAMDISK_DIR)
         CsHelper.mkdir(self.CS_ROUTER_DIR, 0755, False)
@@ -98,40 +93,44 @@ class CsRedundant(object):
             d = s
             if s.endswith(".templ"):
                 d = s.replace(".templ", "")
-            CsHelper.copy_if_needed("%s/%s" % (self.CS_TEMPLATES_DIR, s), "%s/%s" % (self.CS_ROUTER_DIR, d))
-        CsHelper.copy_if_needed("%s/%s" % (self.CS_TEMPLATES_DIR, "keepalived.conf.templ"), self.KEEPALIVED_CONF)
-        CsHelper.copy_if_needed("%s/%s" % (self.CS_TEMPLATES_DIR, "conntrackd.conf.templ"), self.CONNTRACKD_CONF)
-        CsHelper.copy_if_needed("%s/%s" % (self.CS_TEMPLATES_DIR, "checkrouter.sh.templ"), "/opt/cloud/bin/checkrouter.sh")
+            CsHelper.copy_if_needed(
+                "%s/%s" % (self.CS_TEMPLATES_DIR, s), "%s/%s" % (self.CS_ROUTER_DIR, d))
 
-        CsHelper.execute('sed -i "s/--exec\ \$DAEMON;/--exec\ \$DAEMON\ --\ --vrrp;/g" /etc/init.d/keepalived')
+        CsHelper.copy_if_needed(
+            "%s/%s" % (self.CS_TEMPLATES_DIR, "keepalived.conf.templ"), self.KEEPALIVED_CONF)
+        CsHelper.copy_if_needed(
+            "%s/%s" % (self.CS_TEMPLATES_DIR, "checkrouter.sh.templ"), "/opt/cloud/bin/checkrouter.sh")
+
+        CsHelper.execute(
+            'sed -i "s/--exec\ \$DAEMON;/--exec\ \$DAEMON\ --\ --vrrp;/g" /etc/init.d/keepalived')
         # checkrouter.sh configuration
-        file = CsFile("/opt/cloud/bin/checkrouter.sh")
-        file.greplace("[RROUTER_LOG]", self.RROUTER_LOG)
-        file.commit()
+        check_router = CsFile("/opt/cloud/bin/checkrouter.sh")
+        check_router.greplace("[RROUTER_LOG]", self.RROUTER_LOG)
+        check_router.commit()
 
         # keepalived configuration
-        file = CsFile(self.KEEPALIVED_CONF)
-        ads = [o for o in self.address.get_ips() if o.is_public()]
-        # Add a comment for each public IP.  If any change this will cause keepalived to restart
-        # As things stand keepalived will be configured before the IP is added or deleted
-        i = 0
-        for o in ads:
-            file.addeq("! %s=%s" % (i, o.get_cidr()))
-            i = i + 1
-        file.search(" router_id ", "    router_id %s" % self.cl.get_name())
-        file.search(" priority ", "    priority %s" % self.cl.get_priority())
-        file.search(" interface ", "    interface %s" % guest.get_device())
-        file.search(" state ", "    state %s" % "EQUAL")
-        file.search(" virtual_router_id ", "    virtual_router_id %s" % self.cl.get_router_id())
-        file.greplace("[RROUTER_BIN_PATH]", self.CS_ROUTER_DIR)
-        file.section("authentication {", "}", ["        auth_type AH \n", "        auth_pass %s\n" % self.cl.get_router_password()])
-        file.section("virtual_ipaddress {", "}", self._collect_ips())
-        file.commit()
+        keepalived_conf = CsFile(self.KEEPALIVED_CONF)
+        keepalived_conf.search(
+            " router_id ", "    router_id %s" % self.cl.get_name())
+        keepalived_conf.search(
+            " interface ", "    interface %s" % guest.get_device())
+        keepalived_conf.search(
+            " virtual_router_id ", "    virtual_router_id %s" % self.cl.get_router_id())
+        keepalived_conf.greplace("[RROUTER_BIN_PATH]", self.CS_ROUTER_DIR)
+        keepalived_conf.section("authentication {", "}", [
+                                "        auth_type AH \n", "        auth_pass %s\n" % self.cl.get_router_password()])
+        keepalived_conf.section(
+            "virtual_ipaddress {", "}", self._collect_ips())
 
         # conntrackd configuration
-        connt = CsFile(self.CONNTRACKD_CONF)
+        conntrackd_template_conf = "%s/%s" % (self.CS_TEMPLATES_DIR, "conntrackd.conf.templ")
+        conntrackd_temp_bkp = "%s/%s" % (self.CS_TEMPLATES_DIR, "conntrackd.conf.templ.bkp")
+        
+        CsHelper.copy(conntrackd_template_conf, conntrackd_temp_bkp)
+        
+        conntrackd_tmpl = CsFile(conntrackd_template_conf)
         if guest is not None:
-            connt.section("Multicast {", "}", [
+            conntrackd_tmpl.section("Multicast {", "}", [
                           "IPv4_address 225.0.0.50\n",
                           "Group 3780\n",
                           "IPv4_interface %s\n" % guest.get_ip(),
@@ -139,25 +138,58 @@ class CsRedundant(object):
                           "SndSocketBuffer 1249280\n",
                           "RcvSocketBuffer 1249280\n",
                           "Checksum on\n"])
-            connt.section("Address Ignore {", "}", self._collect_ignore_ips())
-            connt.commit()
+            conntrackd_tmpl.section("Address Ignore {", "}", self._collect_ignore_ips())
+            conntrackd_tmpl.commit()
 
-        if connt.is_changed():
+        conntrackd_conf = CsFile(self.CONNTRACKD_CONF)
+
+        is_equals = conntrackd_tmpl.compare(conntrackd_conf)
+        proc = CsProcess(['/etc/conntrackd/conntrackd.conf'])
+        if not proc.find() or not is_equals:
+            CsHelper.copy(conntrackd_template_conf, self.CONNTRACKD_CONF)
             CsHelper.service("conntrackd", "restart")
 
-        if file.is_changed():
-            CsHelper.service("keepalived", "reload")
+        # Restore the template file and remove the backup.
+        CsHelper.copy(conntrackd_temp_bkp, conntrackd_template_conf)
+        CsHelper.execute("rm -rf %s" % conntrackd_temp_bkp)
 
-        # Configure heartbeat cron job
-        cron = CsFile("/etc/cron.d/heartbeat")
-        cron.add("SHELL=/bin/bash", 0)
-        cron.add("PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin", 1)
-        cron.add("*/1 * * * * root $SHELL %s/check_heartbeat.sh 2>&1 > /dev/null" % self.CS_ROUTER_DIR, -1)
-        cron.commit()
+        # Configure heartbeat cron job - runs every 30 seconds
+        heartbeat_cron = CsFile("/etc/cron.d/heartbeat")
+        heartbeat_cron.add("SHELL=/bin/bash", 0)
+        heartbeat_cron.add(
+            "PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin", 1)
+        heartbeat_cron.add(
+            "* * * * * root $SHELL %s/check_heartbeat.sh 2>&1 > /dev/null" % self.CS_ROUTER_DIR, -1)
+        heartbeat_cron.add(
+            "* * * * * root sleep 30; $SHELL %s/check_heartbeat.sh 2>&1 > /dev/null" % self.CS_ROUTER_DIR, -1)
+        heartbeat_cron.commit()
 
-        proc = CsProcess(['/usr/sbin/keepalived', '--vrrp'])
-        if not proc.find():
+        # Configure KeepaliveD cron job - runs at every reboot
+        keepalived_cron = CsFile("/etc/cron.d/keepalived")
+        keepalived_cron.add("SHELL=/bin/bash", 0)
+        keepalived_cron.add(
+            "PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin", 1)
+        keepalived_cron.add("@reboot root service keepalived start", -1)
+        keepalived_cron.commit()
+
+        # Configure ConntrackD cron job - runs at every reboot
+        conntrackd_cron = CsFile("/etc/cron.d/conntrackd")
+        conntrackd_cron.add("SHELL=/bin/bash", 0)
+        conntrackd_cron.add(
+            "PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin", 1)
+        conntrackd_cron.add("@reboot root service conntrackd start", -1)
+        conntrackd_cron.commit()
+
+        proc = CsProcess(['/usr/sbin/keepalived'])
+        if not proc.find() or keepalived_conf.is_changed():
+            keepalived_conf.commit()
             CsHelper.service("keepalived", "restart")
+
+    def release_lock(self):
+        try:
+            os.remove("/tmp/master_lock")
+        except OSError:
+            pass
 
     def set_lock(self):
         """
@@ -169,21 +201,22 @@ class CsRedundant(object):
         for iter in range(0, iterations):
             try:
                 s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-                s.bind('\0master_lock')
+                s.bind('/tmp/master_lock')
                 return s
             except socket.error, e:
                 error_code = e.args[0]
                 error_string = e.args[1]
                 print "Process already running (%d:%s). Exiting" % (error_code, error_string)
                 logging.info("Master is already running, waiting")
-                sleep(1)
+                sleep(time_between)
 
     def set_fault(self):
         """ Set fault mode on this router """
         if not self.cl.is_redundant():
             logging.error("Set fault called on non-redundant router")
             return
-        s = self.set_lock()
+
+        self.set_lock()
         logging.info("Router switched to fault mode")
         ads = [o for o in self.address.get_ips() if o.is_public()]
         for o in ads:
@@ -195,9 +228,10 @@ class CsRedundant(object):
         CsHelper.service("dnsmasq", "stop")
         ads = [o for o in self.address.get_ips() if o.needs_vrrp()]
         for o in ads:
-            pwdsvc = CsPasswdSvc(o.get_gateway()).stop()
+            CsPasswdSvc(o.get_gateway()).stop()
         self.cl.set_fault_state()
         self.cl.save()
+        self.release_lock()
         logging.info("Router switched to fault mode")
 
     def set_backup(self):
@@ -205,27 +239,30 @@ class CsRedundant(object):
         if not self.cl.is_redundant():
             logging.error("Set backup called on non-redundant router")
             return
-        """
-        if not self.cl.is_master():
-            logging.error("Set backup called on node that is already backup")
-            return
-        """
-        s = self.set_lock()
+
+        self.set_lock()
         logging.debug("Setting router to backup")
         ads = [o for o in self.address.get_ips() if o.is_public()]
+        dev = ''
         for o in ads:
-            CsHelper.execute("ifconfig %s down" % o.get_device())
+            if dev == o.get_device():
+                continue
+            logging.info("Bringing public interface %s down" % o.get_device())
+            cmd2 = "ip link set %s down" % o.get_device()
+            CsHelper.execute(cmd2)
+            dev = o.get_device()
         cmd = "%s -C %s" % (self.CONNTRACKD_BIN, self.CONNTRACKD_CONF)
         CsHelper.execute("%s -d" % cmd)
         CsHelper.service("ipsec", "stop")
         CsHelper.service("xl2tpd", "stop")
         ads = [o for o in self.address.get_ips() if o.needs_vrrp()]
         for o in ads:
-            pwdsvc = CsPasswdSvc(o.get_gateway()).stop()
+            CsPasswdSvc(o.get_gateway()).stop()
         CsHelper.service("dnsmasq", "stop")
-        # self._set_priority(self.CS_PRIO_DOWN)
+
         self.cl.set_master_state(False)
         self.cl.save()
+        self.release_lock()
         logging.info("Router switched to backup mode")
 
     def set_master(self):
@@ -233,20 +270,32 @@ class CsRedundant(object):
         if not self.cl.is_redundant():
             logging.error("Set master called on non-redundant router")
             return
-        """
-        if self.cl.is_master():
-            logging.error("Set master called on master node")
-            return
-        """
-        s = self.set_lock()
+
+        self.set_lock()
         logging.debug("Setting router to master")
+
         ads = [o for o in self.address.get_ips() if o.is_public()]
+        dev = ''
+        route = CsRoute()
         for o in ads:
-            # cmd2 = "ip link set %s up" % self.getDevice()
-            CsHelper.execute("ifconfig %s down" % o.get_device())
-            CsHelper.execute("ifconfig %s up" % o.get_device())
-            CsHelper.execute("arping -I %s -A %s -c 1" % (o.get_device(), o.get_ip()))
-        # FIXME Need to add in the default routes but I am unsure what the gateway is
+            if dev == o.get_device():
+                continue
+            dev = o.get_device()
+            logging.info("Will proceed configuring device ==> %s" % dev)
+            cmd2 = "ip link set %s up" % dev
+            if CsDevice(dev, self.config).waitfordevice():
+                CsHelper.execute(cmd2)
+                logging.info("Bringing public interface %s up" % dev)
+
+                try:
+                    gateway = o.get_gateway()
+                    logging.info("Adding gateway ==> %s to device ==> %s" % (gateway, dev))
+                    route.add_defaultroute(gateway)
+                except:
+                    logging.error("ERROR getting gateway from device %s" % dev)
+            else:
+                logging.error("Device %s was not ready could not bring it up" % dev)
+
         # ip route add default via $gw table Table_$dev proto static
         cmd = "%s -C %s" % (self.CONNTRACKD_BIN, self.CONNTRACKD_CONF)
         CsHelper.execute("%s -c" % cmd)
@@ -257,10 +306,12 @@ class CsRedundant(object):
         CsHelper.service("xl2tpd", "restart")
         ads = [o for o in self.address.get_ips() if o.needs_vrrp()]
         for o in ads:
-            pwdsvc = CsPasswdSvc(o.get_gateway()).restart()
+            CsPasswdSvc(o.get_gateway()).restart()
+
         CsHelper.service("dnsmasq", "restart")
         self.cl.set_master_state(True)
         self.cl.save()
+        self.release_lock()
         logging.info("Router switched to master mode")
 
     def _collect_ignore_ips(self):
@@ -270,7 +321,8 @@ class CsRedundant(object):
         """
         lines = []
         lines.append("\t\t\tIPv4_address %s\n" % "127.0.0.1")
-        lines.append("\t\t\tIPv4_address %s\n" % self.address.get_control_if().get_ip())
+        lines.append("\t\t\tIPv4_address %s\n" %
+                     self.address.get_control_if().get_ip())
         # FIXME - Do we need to also add any internal network gateways?
         return lines
 
@@ -282,19 +334,23 @@ class CsRedundant(object):
 
         In a DomR there will only ever be one address in a VPC there can be many
         The new code also gives the possibility to cloudstack to have a hybrid device
-        thet could function as a router and VPC router at the same time
+        that could function as a router and VPC router at the same time
         """
         lines = []
         for o in self.address.get_ips():
             if o.needs_vrrp():
-                str = "        %s brd %s dev %s\n" % (o.get_gateway_cidr(), o.get_broadcast(), o.get_device())
+                cmdline=self.config.get_cmdline_instance()
+                if(cmdline.get_type()=='router'):
+                    str = "        %s brd %s dev %s\n" % (cmdline.get_guest_gw(), o.get_broadcast(), o.get_device())
+                else:
+                    str = "        %s brd %s dev %s\n" % (o.get_gateway_cidr(), o.get_broadcast(), o.get_device())
                 lines.append(str)
-                self.check_is_up(o.get_device())
         return lines
 
     def check_is_up(self, device):
         """ Ensure device is up """
         cmd = "ip link show %s | grep 'state DOWN'" % device
+
         for i in CsHelper.execute(cmd):
             if " DOWN " in i:
                 cmd2 = "ip link set %s up" % device

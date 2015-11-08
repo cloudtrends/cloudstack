@@ -50,9 +50,14 @@ from nose.plugins.attrib import attr
 from ddt import ddt, data
 # Import System modules
 import time
+import logging
 
 _multiprocess_shared_ = True
 
+logger = logging.getLogger('TestNetworkOps')
+stream_handler = logging.StreamHandler()
+logger.setLevel(logging.DEBUG)
+logger.addHandler(stream_handler)
 
 class TestPublicIP(cloudstackTestCase):
 
@@ -272,7 +277,7 @@ class TestPortForwarding(cloudstackTestCase):
         cls.services["virtual_machine"]["zoneid"] = cls.zone.id
         cls.service_offering = ServiceOffering.create(
             cls.apiclient,
-            cls.services["service_offerings"]
+            cls.services["service_offerings"]["tiny"]
         )
         cls.virtual_machine = VirtualMachine.create(
             cls.apiclient,
@@ -390,7 +395,7 @@ class TestPortForwarding(cloudstackTestCase):
         )
         # SSH virtual machine to test port forwarding
         try:
-            self.debug("SSHing into VM with IP address %s with NAT IP %s" %
+            logger.debug("SSHing into VM with IP address %s with NAT IP %s" %
                        (
                            self.virtual_machine.ipaddress,
                            src_nat_ip_addr.ipaddress
@@ -424,7 +429,7 @@ class TestPortForwarding(cloudstackTestCase):
 
         # Check if the Public SSH port is inaccessible
         with self.assertRaises(Exception):
-            self.debug(
+            logger.debug(
                 "SSHing into VM with IP address %s after NAT rule deletion" %
                 self.virtual_machine.ipaddress)
 
@@ -432,7 +437,9 @@ class TestPortForwarding(cloudstackTestCase):
                 src_nat_ip_addr.ipaddress,
                 self.virtual_machine.ssh_port,
                 self.virtual_machine.username,
-                self.virtual_machine.password
+                self.virtual_machine.password,
+                retries=2,
+                delay=0
             )
         return
 
@@ -516,7 +523,7 @@ class TestPortForwarding(cloudstackTestCase):
         )
 
         try:
-            self.debug("SSHing into VM with IP address %s with NAT IP %s" %
+            logger.debug("SSHing into VM with IP address %s with NAT IP %s" %
                        (
                            self.virtual_machine.ipaddress,
                            ip_address.ipaddress.ipaddress
@@ -536,11 +543,11 @@ class TestPortForwarding(cloudstackTestCase):
                 id=nat_rule.id
             )
         except CloudstackAPIException:
-            self.debug("Nat Rule is deleted")
+            logger.debug("Nat Rule is deleted")
 
         # Check if the Public SSH port is inaccessible
         with self.assertRaises(Exception):
-            self.debug(
+            logger.debug(
                 "SSHing into VM with IP address %s after NAT rule deletion" %
                 self.virtual_machine.ipaddress)
 
@@ -596,7 +603,7 @@ class TestRebootRouter(cloudstackTestCase):
         )
         self.service_offering = ServiceOffering.create(
             self.apiclient,
-            self.services["service_offerings"]
+            self.services["service_offerings"]["tiny"]
         )
         self.vm_1 = VirtualMachine.create(
             self.apiclient,
@@ -671,8 +678,8 @@ class TestRebootRouter(cloudstackTestCase):
 
         # Retrieve router for the user account
 
-        self.debug("Public IP: %s" % self.vm_1.ssh_ip)
-        self.debug("Public IP: %s" % self.public_ip.ipaddress.ipaddress)
+        logger.debug("Public IP: %s" % self.vm_1.ssh_ip)
+        logger.debug("Public IP: %s" % self.public_ip.ipaddress.ipaddress)
         routers = list_routers(
             self.apiclient,
             account=self.account.name,
@@ -686,7 +693,7 @@ class TestRebootRouter(cloudstackTestCase):
 
         router = routers[0]
 
-        self.debug("Rebooting the router (ID: %s)" % router.id)
+        logger.debug("Rebooting the router (ID: %s)" % router.id)
 
         cmd = rebootRouter.rebootRouterCmd()
         cmd.id = router.id
@@ -708,7 +715,7 @@ class TestRebootRouter(cloudstackTestCase):
 
                 vm = list_vm_response[0]
                 if vm.state == 'Running':
-                    self.debug("VM state: %s" % vm.state)
+                    logger.debug("VM state: %s" % vm.state)
                     break
 
             if timeout == 0:
@@ -720,13 +727,14 @@ class TestRebootRouter(cloudstackTestCase):
 
         # we should be able to SSH after successful reboot
         try:
-            self.debug("SSH into VM (ID : %s ) after reboot" % self.vm_1.id)
+            logger.debug("SSH into VM (ID : %s ) after reboot" % self.vm_1.id)
 
             SshClient(
                 self.public_ip.ipaddress.ipaddress,
                 self.services["natrule"]["publicport"],
                 self.vm_1.username,
-                self.vm_1.password
+                self.vm_1.password,
+                retries=5
             )
         except Exception as e:
             self.fail(
@@ -765,7 +773,7 @@ class TestReleaseIP(cloudstackTestCase):
 
         self.service_offering = ServiceOffering.create(
             self.apiclient,
-            self.services["service_offerings"]
+            self.services["service_offerings"]["tiny"]
         )
 
         self.virtual_machine = VirtualMachine.create(
@@ -822,7 +830,7 @@ class TestReleaseIP(cloudstackTestCase):
     def test_releaseIP(self):
         """Test for release public IP address"""
 
-        self.debug("Deleting Public IP : %s" % self.ip_addr.id)
+        logger.debug("Deleting Public IP : %s" % self.ip_addr.id)
 
         self.ip_address.delete(self.apiclient)
 
@@ -851,9 +859,9 @@ class TestReleaseIP(cloudstackTestCase):
                 self.apiclient,
                 id=self.nat_rule.id
             )
-            self.debug("List NAT Rule response" + str(list_nat_rule))
+            logger.debug("List NAT Rule response" + str(list_nat_rule))
         except CloudstackAPIException:
-            self.debug("Port Forwarding Rule is deleted")
+            logger.debug("Port Forwarding Rule is deleted")
 
         # listLoadBalancerRules should not list
         # associated rules with Public IP address
@@ -862,9 +870,9 @@ class TestReleaseIP(cloudstackTestCase):
                 self.apiclient,
                 id=self.lb_rule.id
             )
-            self.debug("List LB Rule response" + str(list_lb_rule))
+            logger.debug("List LB Rule response" + str(list_lb_rule))
         except CloudstackAPIException:
-            self.debug("Port Forwarding Rule is deleted")
+            logger.debug("Port Forwarding Rule is deleted")
 
         # SSH Attempt though public IP should fail
         with self.assertRaises(Exception):
@@ -905,7 +913,7 @@ class TestDeleteAccount(cloudstackTestCase):
         )
         self.service_offering = ServiceOffering.create(
             self.apiclient,
-            self.services["service_offerings"]
+            self.services["service_offerings"]["tiny"]
         )
         self.vm_1 = VirtualMachine.create(
             self.apiclient,
@@ -979,7 +987,7 @@ class TestDeleteAccount(cloudstackTestCase):
                 domainid=self.account.domainid
             )
         except CloudstackAPIException:
-            self.debug("Port Forwarding Rule is deleted")
+            logger.debug("Port Forwarding Rule is deleted")
 
         # ListPortForwardingRules should not
         # list associated rules with deleted account
@@ -990,7 +998,7 @@ class TestDeleteAccount(cloudstackTestCase):
                 domainid=self.account.domainid
             )
         except CloudstackAPIException:
-            self.debug("NATRule is deleted")
+            logger.debug("NATRule is deleted")
 
         # Retrieve router for the user account
         try:
@@ -1005,7 +1013,7 @@ class TestDeleteAccount(cloudstackTestCase):
                 "Check routers are properly deleted."
             )
         except CloudstackAPIException:
-            self.debug("Router is deleted")
+            logger.debug("Router is deleted")
 
         except Exception as e:
             raise Exception(
@@ -1050,7 +1058,7 @@ class TestRouterRules(cloudstackTestCase):
         cls.services["virtual_machine"]["zoneid"] = cls.zone.id
         cls.service_offering = ServiceOffering.create(
             cls.apiclient,
-            cls.services["service_offerings"]
+            cls.services["service_offerings"]["tiny"]
         )
         cls.virtual_machine = VirtualMachine.create(
             cls.apiclient,
@@ -1169,7 +1177,7 @@ class TestRouterRules(cloudstackTestCase):
             )
         return
 
-    def removeNetworkRules(self, rule, ipaddressobj):
+    def removeNetworkRules(self, rule):
         """ Remove specified rule on acquired public IP and
         default network of virtual machine
         """
@@ -1178,12 +1186,16 @@ class TestRouterRules(cloudstackTestCase):
         if rule == STATIC_NAT_RULE:
             StaticNATRule.disable(
                 self.apiclient,
-                ipaddressobj.ipaddress.id)
+                self.ipaddress.ipaddress.id)
 
         elif rule == LB_RULE:
             self.lb_rule.delete(self.apiclient)
         else:
             self.nat_rule.delete(self.apiclient)
+
+        logger.debug("Releasing IP %s from account %s" % (self.ipaddress.ipaddress.ipaddress, self.account.name))
+        self.ipaddress.delete(self.apiclient)
+
         return
 
     @data(STATIC_NAT_RULE, NAT_RULE, LB_RULE)
@@ -1202,7 +1214,6 @@ class TestRouterRules(cloudstackTestCase):
             domainid=self.account.domainid,
             networkid=self.defaultNetworkId
         )
-        self.cleanup.append(self.ipaddress)
 
         self.createNetworkRules(rule=value,
                                 ipaddressobj=self.ipaddress,
@@ -1213,13 +1224,13 @@ class TestRouterRules(cloudstackTestCase):
                              listall=True)[0]
 
         response = self.getCommandResultFromRouter(router, "ip addr")
-        self.debug(response)
+        logger.debug(response)
         stringToMatch = "inet %s" % self.ipaddress.ipaddress.ipaddress
         self.assertTrue(stringToMatch in str(response), "IP address is\
-                not removed from VR even after disabling statin NAT")
+                not added to the VR!")
 
         try:
-            self.debug("SSHing into VM with IP address %s with NAT IP %s" %
+            logger.debug("SSHing into VM with IP address %s with NAT IP %s" %
                        (
                            self.virtual_machine.ipaddress,
                            self.ipaddress.ipaddress.ipaddress
@@ -1236,17 +1247,17 @@ class TestRouterRules(cloudstackTestCase):
         # 1. listIpForwardingRules should not return the deleted rule anymore
         # 2. attempt to do ssh should now fail
 
-        self.removeNetworkRules(rule=value, ipaddressobj=self.ipaddress)
+        self.removeNetworkRules(rule=value)
 
         response = self.getCommandResultFromRouter(router, "ip addr")
-        self.debug(response)
+        logger.debug(response)
         stringToMatch = "inet %s" % self.ipaddress.ipaddress.ipaddress
         self.assertFalse(stringToMatch in str(response), "IP address is\
-                not removed from VR even after disabling statin NAT")
+                not removed from VR even after disabling stat in NAT")
 
         # Check if the Public SSH port is inaccessible
         with self.assertRaises(Exception):
-            self.debug(
+            logger.debug(
                 "SSHing into VM with IP address %s after NAT rule deletion" %
                 self.virtual_machine.ipaddress)
 

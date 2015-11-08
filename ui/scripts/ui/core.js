@@ -61,7 +61,7 @@
                 );
             }
 
-            if (args.isPlugin) {
+            if (args.isPlugin && !args.showOnNavigation) {
                 $li.hide();
             }
 
@@ -88,7 +88,7 @@
             return $(this).hasClass(sectionID);
         });
         var data = args.sections[sectionID];
-        var isPlugin = data.isPlugin;
+        var isPlugin = data.isPlugin && !data.showOnNavigation;
 
         data.$browser = $browser;
 
@@ -98,7 +98,7 @@
             $navItem.addClass('active');
             $browser.cloudBrowser('removeAllPanels');
         }
-        
+
         $browser.cloudBrowser('addPanel', {
             title: '<span class="section">' + _l(data.title) + '</span>' + '<span class="subsection"></span>',
             data: '',
@@ -106,7 +106,7 @@
                 if(!isPlugin) {
                     $breadcrumb.attr('title', _l(data.title));
                 }
-                
+
                 data.$breadcrumb = $breadcrumb;
 
                 // Hide breadcrumb if this is the home section

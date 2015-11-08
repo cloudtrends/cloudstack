@@ -36,21 +36,25 @@ class CsDhcp(CsDataBag):
         self.preseed()
         self.cloud = CsFile(DHCP_HOSTS)
         self.conf = CsFile(CLOUD_CONF)
-        length = len(self.conf)
+
+        self.cloud.repopulate()
+
         for item in self.dbag:
             if item == "id":
                 continue
             self.add(self.dbag[item])
         self.write_hosts()
+        
         if self.cloud.is_changed():
             self.delete_leases()
+
         self.configure_server()
+
+        # We restart DNSMASQ every time the configure.py is called in order to avoid lease problems.
+        CsHelper.service("dnsmasq", "restart")
+
         self.conf.commit()
         self.cloud.commit()
-        if self.conf.is_changed():
-            CsHelper.service("dnsmasq", "restart")
-        elif self.cloud.is_changed():
-            CsHelper.hup_dnsmasq("dnsmasq", "dnsmasq")
 
     def configure_server(self):
         # self.conf.addeq("dhcp-hostsfile=%s" % DHCP_HOSTS)
@@ -67,9 +71,11 @@ class CsDhcp(CsDataBag):
             line = "dhcp-option=tag:interface-%s,15,%s" % (device, gn.get_domain())
             self.conf.search(sline, line)
             # DNS search order
-            sline = "dhcp-option=tag:interface-%s,6" % device
-            line = "dhcp-option=tag:interface-%s,6,%s" % (device, ','.join(gn.get_dns()))
-            self.conf.search(sline, line)
+            if gn.get_dns() and device:
+                sline = "dhcp-option=tag:interface-%s,6" % device
+                dns_list = [x for x in gn.get_dns() if x is not None]
+                line = "dhcp-option=tag:interface-%s,6,%s" % (device, ','.join(dns_list))
+                self.conf.search(sline, line)
             # Gateway
             gateway = ''
             if self.config.is_vpc():
@@ -131,8 +137,8 @@ class CsDhcp(CsDataBag):
         file.repopulate()
         for ip in self.hosts:
             file.add("%s\t%s" % (ip, self.hosts[ip]))
-        file.commit()
         if file.is_changed():
+            file.commit()
             logging.info("Updated hosts file")
         else:
             logging.debug("Hosts file unchanged")

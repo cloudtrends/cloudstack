@@ -332,7 +332,7 @@ public class DefaultEndPointSelector implements EndPointSelector {
             }
         } else if (action == StorageAction.MIGRATEVOLUME) {
             VolumeInfo volume = (VolumeInfo)object;
-            if (volume.getHypervisorType() == Hypervisor.HypervisorType.Hyperv) {
+            if (volume.getHypervisorType() == Hypervisor.HypervisorType.Hyperv || volume.getHypervisorType() == Hypervisor.HypervisorType.VMware) {
                 VirtualMachine vm = volume.getAttachedVM();
                 if ((vm != null) && (vm.getState() == VirtualMachine.State.Running)) {
                     Long hostId = vm.getHostId();
@@ -395,30 +395,19 @@ public class DefaultEndPointSelector implements EndPointSelector {
         sbuilder.append(" ORDER by rand() limit 1");
 
         String sql = sbuilder.toString();
-        PreparedStatement pstmt = null;
-        ResultSet rs = null;
         HostVO host = null;
         TransactionLegacy txn = TransactionLegacy.currentTxn();
 
-        try {
-            pstmt = txn.prepareStatement(sql);
-            rs = pstmt.executeQuery();
+        try (
+                PreparedStatement pstmt = txn.prepareStatement(sql);
+                ResultSet rs = pstmt.executeQuery();
+            ) {
             while (rs.next()) {
                 long id = rs.getLong(1);
                 host = hostDao.findById(id);
             }
         } catch (SQLException e) {
             s_logger.warn("can't find endpoint", e);
-        } finally {
-            try {
-                if (rs != null) {
-                    rs.close();
-                }
-                if (pstmt != null) {
-                    pstmt.close();
-                }
-            } catch (SQLException e) {
-            }
         }
 
         if (host == null) {

@@ -118,7 +118,7 @@ class TestScaleVm(cloudstackTestCase):
         return
 
     @attr(hypervisor="xenserver")
-    @attr(tags=["advanced", "basic"], required_hardware="true")
+    @attr(tags=["advanced", "basic"], required_hardware="false")
     def test_01_scale_vm(self):
         """Test scale virtual machine
         """
@@ -174,7 +174,7 @@ class TestScaleVm(cloudstackTestCase):
         self.assertNotEqual(
             list_vm_response,
             None,
-            "Check virtual machine is listVirtualMachines"
+            "Check virtual machine is in listVirtualMachines"
         )
 
         vm_response = list_vm_response[0]

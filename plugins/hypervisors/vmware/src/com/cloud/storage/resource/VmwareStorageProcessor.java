@@ -736,7 +736,7 @@ public class VmwareStorageProcessor implements StorageProcessor {
 
         VirtualMachineMO clonedVm = null;
         try {
-            Pair<VirtualDisk, String> volumeDeviceInfo = vmMo.getDiskDevice(volumePath, false);
+            Pair<VirtualDisk, String> volumeDeviceInfo = vmMo.getDiskDevice(volumePath);
             if (volumeDeviceInfo == null) {
                 String msg = "Unable to find related disk device for volume. volume path: " + volumePath;
                 s_logger.error(msg);
@@ -1068,7 +1068,7 @@ public class VmwareStorageProcessor implements StorageProcessor {
         VirtualMachineMO clonedVm = null;
         try {
 
-            Pair<VirtualDisk, String> volumeDeviceInfo = vmMo.getDiskDevice(volumePath, false);
+            Pair<VirtualDisk, String> volumeDeviceInfo = vmMo.getDiskDevice(volumePath);
             if (volumeDeviceInfo == null) {
                 String msg = "Unable to find related disk device for volume. volume path: " + volumePath;
                 s_logger.error(msg);
@@ -1219,7 +1219,7 @@ public class VmwareStorageProcessor implements StorageProcessor {
                             for (String vmdkDsFilePath : backupResult.third()) {
                                 s_logger.info("Validate disk chain file:" + vmdkDsFilePath);
 
-                                if (vmMo.getDiskDevice(vmdkDsFilePath, false) == null) {
+                                if (vmMo.getDiskDevice(vmdkDsFilePath) == null) {
                                     s_logger.info("" + vmdkDsFilePath + " no longer exists, consolidation detected");
                                     chainConsolidated = true;
                                     break;
@@ -1303,7 +1303,7 @@ public class VmwareStorageProcessor implements StorageProcessor {
             VmwareHypervisorHost hyperHost = hostService.getHyperHost(context, null);
             VirtualMachineMO vmMo = hyperHost.findVmOnHyperHost(vmName);
             if (vmMo == null) {
-                String msg = "Unable to find the VM to execute AttachVolumeCommand, vmName: " + vmName;
+                String msg = "Unable to find the VM to execute AttachCommand, vmName: " + vmName;
                 s_logger.error(msg);
                 throw new Exception(msg);
             }
@@ -1329,7 +1329,7 @@ public class VmwareStorageProcessor implements StorageProcessor {
             }
 
             if (morDs == null) {
-                String msg = "Unable to find the mounted datastore to execute AttachVolumeCommand, vmName: " + vmName;
+                String msg = "Unable to find the mounted datastore to execute AttachCommand, vmName: " + vmName;
                 s_logger.error(msg);
                 throw new Exception(msg);
             }
@@ -1368,7 +1368,7 @@ public class VmwareStorageProcessor implements StorageProcessor {
                 if (isManaged) {
                     handleDatastoreAndVmdkDetachManaged(diskUuid, iScsiName, storageHost, storagePort);
                 } else {
-                    VmwareStorageLayoutHelper.syncVolumeToRootFolder(dsMo.getOwnerDatacenter().first(), dsMo, volumeTO.getPath());
+                    VmwareStorageLayoutHelper.syncVolumeToRootFolder(dsMo.getOwnerDatacenter().first(), dsMo, volumeTO.getPath(), vmName);
                 }
             }
 

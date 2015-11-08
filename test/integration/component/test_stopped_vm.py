@@ -54,12 +54,6 @@ class TestDeployVM(cloudstackTestCase):
         cls.domain = get_domain(cls.api_client)
         cls.zone = get_zone(cls.api_client, cls.testClient.getZoneForTests())
         cls.hypervisor = cls.testClient.getHypervisorInfo()
-        cls.unsupportedStorageType = False
-        if cls.hypervisor.lower() == 'lxc':
-            if not find_storage_pool_type(cls.api_client, storagetype='rbd'):
-                cls.unsupportedStorageType = True
-
-        cls.hypervisor = cls.testClient.getHypervisorInfo()
         cls.skip = False
 
         if cls.hypervisor.lower() == 'lxc':
@@ -141,7 +135,6 @@ class TestDeployVM(cloudstackTestCase):
             accountid=self.account.name,
             domainid=self.account.domainid,
             serviceofferingid=self.service_offering.id,
-            diskofferingid=self.disk_offering.id,
             mode=self.zone.networktype
         )
 
@@ -526,9 +519,6 @@ class TestDeployVM(cloudstackTestCase):
         # 3. Create an instance with datadisk attached to it. Detach DATADISK
         # 4. Attach the volume to first virtual machine.
 
-        if self.unsupportedStorageType:
-            self.skipTest(
-                "unsupported storage type")
 
         self.debug("Deploying instance in the account: %s" %
                    self.account.name)
@@ -1061,7 +1051,6 @@ class TestRouterStateAfterDeploy(cloudstackTestCase):
             accountid=self.account.name,
             domainid=self.account.domainid,
             serviceofferingid=self.service_offering.id,
-            diskofferingid=self.disk_offering.id,
             startvm=False
         )
 
@@ -1069,18 +1058,20 @@ class TestRouterStateAfterDeploy(cloudstackTestCase):
             self.apiclient,
             VirtualMachine.STOPPED)
         self.assertEqual(response[0], PASS, response[1])
-        self.debug("Checking the router state after VM deployment")
-        routers = Router.list(
-            self.apiclient,
-            account=self.account.name,
-            domainid=self.account.domainid,
-            listall=True
-        )
-        self.assertEqual(
-            routers,
-            None,
-            "List routers should return empty response"
-        )
+
+        if(self.zone.networktype == "Advanced"):
+            self.debug("Checking the router state after VM deployment")
+            routers = Router.list(
+                self.apiclient,
+                account=self.account.name,
+                domainid=self.account.domainid,
+                listall=True
+            )
+            self.assertEqual(
+                routers,
+                None,
+                "List routers should return empty response"
+            )
         self.debug(
             "Deploying another instance (startvm=true) in the account: %s" %
             self.account.name)
@@ -1099,12 +1090,19 @@ class TestRouterStateAfterDeploy(cloudstackTestCase):
             VirtualMachine.RUNNING)
         self.assertEqual(response[0], PASS, response[1])
         self.debug("Checking the router state after VM deployment")
-        routers = Router.list(
-            self.apiclient,
-            account=self.account.name,
-            domainid=self.account.domainid,
-            listall=True
-        )
+        if (self.zone.networktype == "Basic"):
+            routers = Router.list(
+                                  self.apiclient,
+                                  zoneid=self.zone.id,
+                                  listall=True
+                                 )
+        else:
+            routers = Router.list(
+                self.apiclient,
+                account=self.account.name,
+                domainid=self.account.domainid,
+                listall=True
+            )
         self.assertEqual(
             isinstance(routers, list),
             True,
@@ -1120,17 +1118,18 @@ class TestRouterStateAfterDeploy(cloudstackTestCase):
         self.debug("Destroying the running VM:%s" %
                    self.virtual_machine_2.name)
         self.virtual_machine_2.delete(self.apiclient, expunge=True)
-        routers = Router.list(
-            self.apiclient,
-            account=self.account.name,
-            domainid=self.account.domainid,
-            listall=True
-        )
-        self.assertNotEqual(
-            routers,
-            None,
-            "Router should get deleted after expunge delay+wait"
-        )
+        if(self.zone.networktype == "Advanced"):
+            routers = Router.list(
+                self.apiclient,
+                account=self.account.name,
+                domainid=self.account.domainid,
+                listall=True
+            )
+            self.assertNotEqual(
+                routers,
+                None,
+                "Router should get deleted after expunge delay+wait"
+            )
         return
 
 

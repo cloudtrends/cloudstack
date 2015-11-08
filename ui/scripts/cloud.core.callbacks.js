@@ -39,9 +39,9 @@ function onLogoutCallback() {
 
     return true; // return true means the login page will show
     /*
-	window.location.replace("http://www.google.com"); //redirect to a different location
-  return false;	//return false means it will stay in the location window.location.replace() sets it to (i.e. "http://www.google.com")
-	*/
+    window.location.replace("http://www.google.com"); //redirect to a different location
+  return false;    //return false means it will stay in the location window.location.replace() sets it to (i.e. "http://www.google.com")
+    */
 }
 
 var g_loginResponse = null;
@@ -65,6 +65,7 @@ $(document).ready(function() {
     if (url != undefined && url != null && url.length > 0) {
         url = unescape(clientApiUrl + "?" + url);
         $.ajax({
+            type: 'POST',
             url: url,
             dataType: "json",
             async: false,

@@ -991,6 +991,10 @@ public class AccountManagerImpl extends ManagerBase implements AccountManager, M
     }
 
     @Override
+    @ActionEvents({
+        @ActionEvent(eventType = EventTypes.EVENT_ACCOUNT_CREATE, eventDescription = "creating Account"),
+        @ActionEvent(eventType = EventTypes.EVENT_USER_CREATE, eventDescription = "creating User")
+    })
     public UserAccount createUserAccount(final String userName, final String password, final String firstName, final String lastName, final String email, final String timezone,
             String accountName, final short accountType, Long domainId, final String networkDomain, final Map<String, String> details, String accountUUID, final String userUUID) {
 
@@ -1132,6 +1136,7 @@ public class AccountManagerImpl extends ManagerBase implements AccountManager, M
     }
 
     @Override
+    @ActionEvent(eventType = EventTypes.EVENT_USER_CREATE, eventDescription = "creating User")
     public UserVO createUser(String userName, String password, String firstName, String lastName, String email, String timeZone, String accountName, Long domainId,
         String userUUID) {
 
@@ -1263,6 +1268,7 @@ public class AccountManagerImpl extends ManagerBase implements AccountManager, M
     }
 
     @Override
+    @ActionEvent(eventType = EventTypes.EVENT_USER_UPDATE, eventDescription = "updating User")
     public UserAccount updateUser(UpdateUserCmd cmd) {
         Long id = cmd.getId();
         String apiKey = cmd.getApiKey();
@@ -2145,14 +2151,10 @@ public class AccountManagerImpl extends ManagerBase implements AccountManager, M
             s_logger.debug("Attempting to log in user: " + username + " in domain " + domainId);
         }
         UserAccount userAccount = _userAccountDao.getUserAccount(username, domainId);
-        if (userAccount == null) {
-            s_logger.warn("Unable to find an user with username " + username + " in domain " + domainId);
-            return null;
-        }
 
         boolean authenticated = false;
         HashSet<ActionOnFailedAuthentication> actionsOnFailedAuthenticaion = new HashSet<ActionOnFailedAuthentication>();
-        User.Source userSource = userAccount.getSource();
+        User.Source userSource = userAccount != null ? userAccount.getSource(): User.Source.UNKNOWN;
         for (UserAuthenticator authenticator : _userAuthenticators) {
             if(userSource != User.Source.UNKNOWN) {
                 if(!authenticator.getName().equalsIgnoreCase(userSource.name())){
@@ -2177,6 +2179,7 @@ public class AccountManagerImpl extends ManagerBase implements AccountManager, M
             if (domain != null) {
                 domainName = domain.getName();
             }
+            userAccount = _userAccountDao.getUserAccount(username, domainId);
 
             if (!userAccount.getState().equalsIgnoreCase(Account.State.enabled.toString()) ||
                 !userAccount.getAccountState().equalsIgnoreCase(Account.State.enabled.toString())) {
@@ -2194,6 +2197,11 @@ public class AccountManagerImpl extends ManagerBase implements AccountManager, M
         } else {
             if (s_logger.isDebugEnabled()) {
                 s_logger.debug("Unable to authenticate user with username " + username + " in domain " + domainId);
+            }
+
+            if (userAccount == null) {
+                s_logger.warn("Unable to find an user with username " + username + " in domain " + domainId);
+                return null;
             }
 
             if (userAccount.getState().equalsIgnoreCase(Account.State.enabled.toString())) {

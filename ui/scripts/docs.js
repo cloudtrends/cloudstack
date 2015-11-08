@@ -1261,6 +1261,14 @@ cloudStack.docs = {
         desc: 'The group name from which you want to import LDAP users',
         externalLink: ''
     },
+    helpSamlEnable: {
+        desc: 'Enable SAML Single Sign On for the user(s)',
+        externalLink: ''
+    },
+    helpSamlEntity: {
+        desc: 'Choose the SAML Identity Provider Entity ID with which you want to enable the Single Sign On for the user(s)',
+        externalLink: ''
+    },
     helpVpcOfferingName: {
         desc: 'Any desired name for the VPC offering',
         externalLink: ''
@@ -1309,5 +1317,16 @@ cloudStack.docs = {
     helpOvm3Vip: {
         desc: 'The VIP used by the pool and cluster',
         externalLink: ''
+    },
+    helpLdapGroupName: {
+        desc: 'Fully qualified name of OU/GROUP in LDAP',
+        externalLink: ''
+    },
+    helpLdapGroupType: {
+        desc: 'Type of LDAP name provided. Can be either GROUP/OU',
+        externalLink: ''
+    },
+    helpLdapLinkDomainAdmin: {
+        desc: 'domain admin of the linked domain. Specify a username in GROUP/OU of LDAP'
     }
 };

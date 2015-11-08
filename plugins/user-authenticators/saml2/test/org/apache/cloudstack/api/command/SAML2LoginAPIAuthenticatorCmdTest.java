@@ -19,19 +19,23 @@
 
 package org.apache.cloudstack.api.command;
 
+import static org.junit.Assert.assertFalse;
+
 import com.cloud.domain.Domain;
 import com.cloud.user.AccountService;
 import com.cloud.user.DomainManager;
 import com.cloud.user.UserAccountVO;
 import com.cloud.user.dao.UserAccountDao;
 import com.cloud.utils.HttpUtils;
+
 import org.apache.cloudstack.api.ApiServerService;
 import org.apache.cloudstack.api.BaseCmd;
 import org.apache.cloudstack.api.ServerApiException;
 import org.apache.cloudstack.api.auth.APIAuthenticationType;
-import org.apache.cloudstack.framework.config.dao.ConfigurationDao;
 import org.apache.cloudstack.saml.SAML2AuthManager;
-import org.apache.cloudstack.utils.auth.SAMLUtils;
+import org.apache.cloudstack.saml.SAMLPluginConstants;
+import org.apache.cloudstack.saml.SAMLProviderMetadata;
+import org.apache.cloudstack.saml.SAMLUtils;
 import org.joda.time.DateTime;
 import org.junit.Assert;
 import org.junit.Test;
@@ -43,6 +47,7 @@ import org.opensaml.common.SAMLVersion;
 import org.opensaml.saml2.core.Assertion;
 import org.opensaml.saml2.core.AttributeStatement;
 import org.opensaml.saml2.core.AuthnStatement;
+import org.opensaml.saml2.core.Issuer;
 import org.opensaml.saml2.core.NameID;
 import org.opensaml.saml2.core.NameIDType;
 import org.opensaml.saml2.core.Response;
@@ -52,6 +57,7 @@ import org.opensaml.saml2.core.Subject;
 import org.opensaml.saml2.core.impl.AssertionBuilder;
 import org.opensaml.saml2.core.impl.AttributeStatementBuilder;
 import org.opensaml.saml2.core.impl.AuthnStatementBuilder;
+import org.opensaml.saml2.core.impl.IssuerBuilder;
 import org.opensaml.saml2.core.impl.NameIDBuilder;
 import org.opensaml.saml2.core.impl.ResponseBuilder;
 import org.opensaml.saml2.core.impl.StatusBuilder;
@@ -61,7 +67,9 @@ import org.opensaml.saml2.core.impl.SubjectBuilder;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.HttpSession;
+
 import java.lang.reflect.Field;
+import java.security.KeyPair;
 import java.security.cert.X509Certificate;
 import java.util.HashMap;
 import java.util.Map;
@@ -75,9 +83,6 @@ public class SAML2LoginAPIAuthenticatorCmdTest {
 
     @Mock
     SAML2AuthManager samlAuthManager;
-
-    @Mock
-    ConfigurationDao configDao;
 
     @Mock
     DomainManager domainMgr;
@@ -105,6 +110,9 @@ public class SAML2LoginAPIAuthenticatorCmdTest {
         samlMessage.setID("foo");
         samlMessage.setVersion(SAMLVersion.VERSION_20);
         samlMessage.setIssueInstant(new DateTime(0));
+        Issuer issuer = new IssuerBuilder().buildObject();
+        issuer.setValue("MockedIssuer");
+        samlMessage.setIssuer(issuer);
         Status status = new StatusBuilder().buildObject();
         StatusCode statusCode = new StatusCodeBuilder().buildObject();
         statusCode.setValue(StatusCode.SUCCESS_URI);
@@ -146,32 +154,31 @@ public class SAML2LoginAPIAuthenticatorCmdTest {
         domainMgrField.setAccessible(true);
         domainMgrField.set(cmd, domainMgr);
 
-        Field configDaoField = SAML2LoginAPIAuthenticatorCmd.class.getDeclaredField("_configDao");
-        configDaoField.setAccessible(true);
-        configDaoField.set(cmd, configDao);
-
         Field userAccountDaoField = SAML2LoginAPIAuthenticatorCmd.class.getDeclaredField("_userAccountDao");
         userAccountDaoField.setAccessible(true);
         userAccountDaoField.set(cmd, userAccountDao);
 
-        String spId = "someSPID";
-        String url = "someUrl";
-        X509Certificate cert = SAMLUtils.generateRandomX509Certificate(SAMLUtils.generateRandomKeyPair());
-        Mockito.when(samlAuthManager.getServiceProviderId()).thenReturn(spId);
-        Mockito.when(samlAuthManager.getIdpSigningKey()).thenReturn(null);
-        Mockito.when(samlAuthManager.getIdpSingleSignOnUrl()).thenReturn(url);
-        Mockito.when(samlAuthManager.getSpSingleSignOnUrl()).thenReturn(url);
+        KeyPair kp = SAMLUtils.generateRandomKeyPair();
+        X509Certificate cert = SAMLUtils.generateRandomX509Certificate(kp);
+
+        SAMLProviderMetadata providerMetadata = new SAMLProviderMetadata();
+        providerMetadata.setEntityId("random");
+        providerMetadata.setSigningCertificate(cert);
+        providerMetadata.setEncryptionCertificate(cert);
+        providerMetadata.setKeyPair(kp);
+        providerMetadata.setSsoUrl("http://test.local");
+        providerMetadata.setSloUrl("http://test.local");
 
         Mockito.when(session.getAttribute(Mockito.anyString())).thenReturn(null);
-        Mockito.when(configDao.getValue(Mockito.anyString())).thenReturn("someString");
 
         Mockito.when(domain.getId()).thenReturn(1L);
         Mockito.when(domainMgr.getDomain(Mockito.anyString())).thenReturn(domain);
         UserAccountVO user = new UserAccountVO();
-        user.setUsername(SAMLUtils.createSAMLId("someUID"));
         user.setId(1000L);
         Mockito.when(userAccountDao.getUserAccount(Mockito.anyString(), Mockito.anyLong())).thenReturn(user);
         Mockito.when(apiServer.verifyUser(Mockito.anyLong())).thenReturn(false);
+        Mockito.when(samlAuthManager.getSPMetadata()).thenReturn(providerMetadata);
+        Mockito.when(samlAuthManager.getIdPMetadata(Mockito.anyString())).thenReturn(providerMetadata);
 
         Map<String, Object[]> params = new HashMap<String, Object[]>();
 
@@ -180,20 +187,21 @@ public class SAML2LoginAPIAuthenticatorCmdTest {
         Mockito.verify(resp, Mockito.times(1)).sendRedirect(Mockito.anyString());
 
         // SSO SAMLResponse verification test, this should throw ServerApiException for auth failure
-        params.put(SAMLUtils.SAML_RESPONSE, new String[]{"Some String"});
+        params.put(SAMLPluginConstants.SAML_RESPONSE, new String[]{"Some String"});
         Mockito.stub(cmd.processSAMLResponse(Mockito.anyString())).toReturn(buildMockResponse());
+        boolean failing = true;
         try {
             cmd.authenticate("command", params, session, InetAddress.getByName("127.0.0.1"), HttpUtils.RESPONSE_TYPE_JSON, new StringBuilder(), req, resp);
         } catch (ServerApiException ignored) {
+            failing = false;
         }
-        Mockito.verify(configDao, Mockito.atLeastOnce()).getValue(Mockito.anyString());
-        Mockito.verify(domainMgr, Mockito.times(1)).getDomain(Mockito.anyString());
-        Mockito.verify(userAccountDao, Mockito.times(1)).getUserAccount(Mockito.anyString(), Mockito.anyLong());
-        Mockito.verify(apiServer, Mockito.times(1)).verifyUser(Mockito.anyLong());
+        assertFalse("authentication should not have succeeded", failing);
+        Mockito.verify(userAccountDao, Mockito.times(0)).getUserAccount(Mockito.anyString(), Mockito.anyLong());
+        Mockito.verify(apiServer, Mockito.times(0)).verifyUser(Mockito.anyLong());
     }
 
     @Test
     public void testGetAPIType() {
-        Assert.assertTrue(new GetServiceProviderMetaDataCmd().getAPIType() == APIAuthenticationType.LOGIN_API);
+        Assert.assertTrue(new SAML2LoginAPIAuthenticatorCmd().getAPIType() == APIAuthenticationType.LOGIN_API);
     }
 }

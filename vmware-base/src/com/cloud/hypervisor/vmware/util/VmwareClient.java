@@ -16,6 +16,22 @@
 // under the License.
 package com.cloud.hypervisor.vmware.util;
 
+import java.lang.reflect.Method;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+import java.util.StringTokenizer;
+
+import javax.net.ssl.HostnameVerifier;
+import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.SSLSession;
+import javax.xml.ws.BindingProvider;
+import javax.xml.ws.WebServiceException;
+import javax.xml.ws.handler.MessageContext;
+
+import org.apache.log4j.Logger;
+
 import com.vmware.vim25.DynamicProperty;
 import com.vmware.vim25.InvalidCollectorVersionFaultMsg;
 import com.vmware.vim25.InvalidPropertyFaultMsg;
@@ -38,22 +54,9 @@ import com.vmware.vim25.TraversalSpec;
 import com.vmware.vim25.UpdateSet;
 import com.vmware.vim25.VimPortType;
 import com.vmware.vim25.VimService;
+
 import org.apache.cloudstack.utils.security.SSLUtils;
 import org.apache.cloudstack.utils.security.SecureSSLSocketFactory;
-import org.apache.log4j.Logger;
-
-import javax.net.ssl.HostnameVerifier;
-import javax.net.ssl.HttpsURLConnection;
-import javax.net.ssl.SSLSession;
-import javax.xml.ws.BindingProvider;
-import javax.xml.ws.WebServiceException;
-import javax.xml.ws.handler.MessageContext;
-import java.lang.reflect.Method;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
-import java.util.StringTokenizer;
 
 /**
  * A wrapper class to handle Vmware vsphere connection and disconnection.
@@ -95,6 +98,8 @@ public class VmwareClient {
 
             vimService = new VimService();
         } catch (Exception e) {
+            s_logger.info("[ignored]"
+                    + "failed to trust all certificates blindly: " + e.getLocalizedMessage());
         }
     }
 
@@ -147,13 +152,27 @@ public class VmwareClient {
         @SuppressWarnings("unchecked")
         Map<String, List<String>> headers = (Map<String, List<String>>)((BindingProvider)vimPort).getResponseContext().get(MessageContext.HTTP_RESPONSE_HEADERS);
         List<String> cookies = headers.get("Set-cookie");
+
+        vimPort.login(serviceContent.getSessionManager(), userName, password, null);
+
+        if (cookies == null) {
+            // Get the cookie from the response header. See vmware sample program com.vmware.httpfileaccess.GetVMFiles
+            @SuppressWarnings("unchecked")
+            Map<String, List<String>> responseHeaders = (Map<String, List<String>>)((BindingProvider)vimPort).getResponseContext().get(MessageContext.HTTP_RESPONSE_HEADERS);
+            cookies = responseHeaders.get("Set-cookie");
+            if (cookies == null) {
+                String msg = "Login successful, but failed to get server cookies from url :[" + url + "]";
+                s_logger.error(msg);
+                throw new Exception(msg);
+            }
+        }
+
         String cookieValue = cookies.get(0);
         StringTokenizer tokenizer = new StringTokenizer(cookieValue, ";");
         cookieValue = tokenizer.nextToken();
         String pathData = "$" + tokenizer.nextToken();
         serviceCookie = "$Version=\"1\"; " + cookieValue + "; " + pathData;
 
-        vimPort.login(serviceContent.getSessionManager(), userName, password, null);
         isConnected = true;
     }
 
@@ -572,41 +591,51 @@ public class VmwareClient {
             return null;
         }
 
-        // Create PropertySpecs
-        PropertySpec pSpec = new PropertySpec();
-        pSpec.setType(type);
-        pSpec.setAll(false);
-        pSpec.getPathSet().add("name");
+        try {
+            // Create PropertySpecs
+            PropertySpec pSpec = new PropertySpec();
+            pSpec.setType(type);
+            pSpec.setAll(false);
+            pSpec.getPathSet().add("name");
 
-        ObjectSpec oSpec = new ObjectSpec();
-        oSpec.setObj(root);
-        oSpec.setSkip(false);
-        oSpec.getSelectSet().addAll(constructCompleteTraversalSpec());
+            ObjectSpec oSpec = new ObjectSpec();
+            oSpec.setObj(root);
+            oSpec.setSkip(false);
+            oSpec.getSelectSet().addAll(constructCompleteTraversalSpec());
 
-        PropertyFilterSpec spec = new PropertyFilterSpec();
-        spec.getPropSet().add(pSpec);
-        spec.getObjectSet().add(oSpec);
-        List<PropertyFilterSpec> specArr = new ArrayList<PropertyFilterSpec>();
-        specArr.add(spec);
+            PropertyFilterSpec spec = new PropertyFilterSpec();
+            spec.getPropSet().add(pSpec);
+            spec.getObjectSet().add(oSpec);
+            List<PropertyFilterSpec> specArr = new ArrayList<PropertyFilterSpec>();
+            specArr.add(spec);
 
-        List<ObjectContent> ocary = vimPort.retrieveProperties(getPropCol(), specArr);
+            ManagedObjectReference propCollector = getPropCol();
+            List<ObjectContent> ocary = vimPort.retrieveProperties(propCollector, specArr);
 
-        if (ocary == null || ocary.size() == 0) {
-            return null;
-        }
+            if (ocary == null || ocary.size() == 0) {
+                return null;
+            }
 
-        // filter through retrieved objects to get the first match.
-        for (ObjectContent oc : ocary) {
-            ManagedObjectReference mor = oc.getObj();
-            List<DynamicProperty> propary = oc.getPropSet();
-            if (type == null || type.equals(mor.getType())) {
-                if (propary.size() > 0) {
-                    String propval = (String)propary.get(0).getVal();
-                    if (propval != null && name.equalsIgnoreCase(propval))
-                        return mor;
+            // filter through retrieved objects to get the first match.
+            for (ObjectContent oc : ocary) {
+                ManagedObjectReference mor = oc.getObj();
+                List<DynamicProperty> propary = oc.getPropSet();
+                if (type == null || type.equals(mor.getType())) {
+                    if (propary.size() > 0) {
+                        String propval = (String)propary.get(0).getVal();
+                        if (propval != null && name.equalsIgnoreCase(propval))
+                            return mor;
+                    }
                 }
             }
+        } catch (InvalidPropertyFaultMsg invalidPropertyException) {
+            s_logger.debug("Failed to get Vmware ManagedObjectReference for name: " + name + " and type: " + type + " due to " + invalidPropertyException.getMessage());
+            throw invalidPropertyException;
+        } catch (RuntimeFaultFaultMsg runtimeFaultException) {
+            s_logger.debug("Failed to get Vmware ManagedObjectReference for name: " + name + " and type: " + type + " due to " + runtimeFaultException.getMessage());
+            throw runtimeFaultException;
         }
+
         return null;
     }
 

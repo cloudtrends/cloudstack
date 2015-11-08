@@ -21,7 +21,6 @@ import com.cloud.user.UserAccount;
 import com.cloud.user.dao.UserAccountDao;
 import com.cloud.user.dao.UserDao;
 import com.cloud.utils.Pair;
-import org.apache.cloudstack.utils.auth.SAMLUtils;
 import org.apache.cxf.common.util.StringUtils;
 import org.apache.log4j.Logger;
 
@@ -50,13 +49,12 @@ public class SAML2UserAuthenticator extends DefaultUserAuthenticator {
         }
 
         final UserAccount userAccount = _userAccountDao.getUserAccount(username, domainId);
-        if (userAccount == null) {
-            s_logger.debug("Unable to find user with " + username + " in domain " + domainId);
+        if (userAccount == null || userAccount.getSource() != User.Source.SAML2) {
+            s_logger.debug("Unable to find user with " + username + " in domain " + domainId + ", or user source is not SAML2");
             return new Pair<Boolean, ActionOnFailedAuthentication>(false, null);
         } else {
             User user = _userDao.getUser(userAccount.getId());
-            if (user != null && SAMLUtils.checkSAMLUser(user.getUuid(), username) &&
-                    requestParameters != null && requestParameters.containsKey(SAMLUtils.SAML_RESPONSE)) {
+            if (user != null && user.getSource() == User.Source.SAML2 && user.getExternalEntity() != null) {
                 return new Pair<Boolean, ActionOnFailedAuthentication>(true, null);
             }
         }

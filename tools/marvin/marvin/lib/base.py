@@ -551,7 +551,7 @@ class VirtualMachine:
 
     def get_ssh_client(
             self, ipaddress=None, reconnect=False, port=None,
-            keyPairFileLocation=None):
+            keyPairFileLocation=None, retries=20):
         """Get SSH object of VM"""
 
         # If NAT Rules are not created while VM deployment in Advanced mode
@@ -570,6 +570,7 @@ class VirtualMachine:
                 self.ssh_port,
                 self.username,
                 self.password,
+                retries=retries,
                 keyPairFileLocation=keyPairFileLocation
             )
         self.ssh_client = self.ssh_client or is_server_ssh_ready(
@@ -577,6 +578,7 @@ class VirtualMachine:
             self.ssh_port,
             self.username,
             self.password,
+            retries=retries,
             keyPairFileLocation=keyPairFileLocation
         )
         return self.ssh_client
@@ -1943,14 +1945,17 @@ class ServiceOffering:
         if "isvolatile" in services:
             cmd.isvolatile = services["isvolatile"]
 
+        if "customizediops" in services:
+            cmd.customizediops = services["customizediops"]
+
         if "miniops" in services:
             cmd.miniops = services["miniops"]
 
         if "maxiops" in services:
             cmd.maxiops = services["maxiops"]
 
-        if "customizediops" in services:
-            cmd.customizediops = services["customizediops"]
+        if "hypervisorsnapshotreserve" in services:
+            cmd.hypervisorsnapshotreserve = services["hypervisorsnapshotreserve"]
 
         if "offerha" in services:
             cmd.offerha = services["offerha"]
@@ -2021,6 +2026,9 @@ class DiskOffering:
 
         if "miniops" in services:
             cmd.miniops = services["miniops"]
+
+        if "hypervisorsnapshotreserve" in services:
+            cmd.hypervisorsnapshotreserve = services["hypervisorsnapshotreserve"]
 
         if "provisioningtype" in services:
             cmd.provisioningtype = services["provisioningtype"]
@@ -2636,6 +2644,22 @@ class StoragePool:
         return apiclient.enableStorageMaintenance(cmd)
 
     @classmethod
+    def enableMaintenance(cls, apiclient, id):
+        """enables maintenance mode Storage pool"""
+
+        cmd = enableStorageMaintenance.enableStorageMaintenanceCmd()
+        cmd.id = id
+        return apiclient.enableStorageMaintenance(cmd)
+
+    @classmethod
+    def cancelMaintenance(cls, apiclient, id):
+        """Cancels maintenance mode Host"""
+
+        cmd = cancelStorageMaintenance.cancelStorageMaintenanceCmd()
+        cmd.id = id
+        return apiclient.cancelStorageMaintenance(cmd)
+
+    @classmethod
     def list(cls, apiclient, **kwargs):
         """List all storage pools matching criteria"""
 
@@ -2918,7 +2942,7 @@ class Vpn:
 
     @classmethod
     def create(cls, apiclient, publicipid, account=None, domainid=None,
-               projectid=None, networkid=None, vpcid=None, openfirewall=None):
+               projectid=None, networkid=None, vpcid=None, openfirewall=None, iprange=None, fordisplay=False):
         """Create VPN for Public IP address"""
         cmd = createRemoteAccessVpn.createRemoteAccessVpnCmd()
         cmd.publicipid = publicipid
@@ -2932,8 +2956,12 @@ class Vpn:
             cmd.networkid = networkid
         if vpcid:
             cmd.vpcid = vpcid
+        if iprange:
+            cmd.iprange = iprange
         if openfirewall:
             cmd.openfirewall = openfirewall
+
+        cmd.fordisplay = fordisplay
         return Vpn(apiclient.createRemoteAccessVpn(cmd).__dict__)
 
     @classmethod
@@ -2944,11 +2972,13 @@ class Vpn:
         return (apiclient.createVpnGateway(cmd).__dict__)
 
     @classmethod
-    def createVpnConnection(cls, apiclient, s2scustomergatewayid, s2svpngatewayid):
+    def createVpnConnection(cls, apiclient, s2scustomergatewayid, s2svpngatewayid, passive=False):
         """Create VPN Connection """
         cmd = createVpnConnection.createVpnConnectionCmd()
         cmd.s2scustomergatewayid = s2scustomergatewayid
         cmd.s2svpngatewayid = s2svpngatewayid
+        if passive:
+            cmd.passive = passive
         return (apiclient.createVpnGateway(cmd).__dict__)
 
     @classmethod
@@ -3815,6 +3845,52 @@ class NetScaler:
         if 'account' in kwargs.keys() and 'domainid' in kwargs.keys():
             cmd.listall = True
         return(apiclient.listNetscalerLoadBalancers(cmd))
+
+class NiciraNvp:
+
+    def __init__(self, items):
+        self.__dict__.update(items)
+
+    @classmethod
+    def add(cls, apiclient, services, physicalnetworkid,
+            hostname=None, username=None, password=None, transportzoneuuid=None):
+        cmd = addNiciraNvpDevice.addNiciraNvpDeviceCmd()
+        cmd.physicalnetworkid = physicalnetworkid
+        if hostname:
+            cmd.hostname = hostname
+        else:
+            cmd.hostname = services['hostname']
+
+        if username:
+            cmd.username = username
+        else:
+            cmd.username = services['username']
+
+        if password:
+            cmd.password = password
+        else:
+            cmd.password = services['password']
+
+        if transportzoneuuid:
+            cmd.transportzoneuuid = transportzoneuuid
+        else:
+            cmd.transportzoneuuid = services['transportZoneUuid']
+
+        return NiciraNvp(apiclient.addNiciraNvpDevice(cmd).__dict__)
+
+    def delete(self, apiclient):
+        cmd = deleteNiciraNvpDevice.deleteNiciraNvpDeviceCmd()
+        cmd.nvpdeviceid = self.nvpdeviceid
+        apiclient.deleteNiciraNvpDevice(cmd)
+        return
+
+    @classmethod
+    def list(cls, apiclient, **kwargs):
+        cmd = listNiciraNvpDevices.listNiciraNvpDevicesCmd()
+        [setattr(cmd, k, v) for k, v in kwargs.items()]
+        if 'account' in kwargs.keys() and 'domainid' in kwargs.keys():
+            cmd.listall = True
+        return(apiclient.listNiciraNvpDevices(cmd))
 
 
 class NetworkServiceProvider:

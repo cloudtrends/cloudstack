@@ -369,7 +369,7 @@ body.login {
 .login .select-language select {
   width: 260px;
   border: 1px solid #808080;
-  margin-top: 30px;
+  margin-top: 20px;
   /*+border-radius:4px;*/
   -moz-border-radius: 4px;
   -webkit-border-radius: 4px;
@@ -460,14 +460,12 @@ body.login {
   background: transparent url(../images/sprites.png) -563px -747px;
   cursor: pointer;
   border: none;
-  margin: 7px 120px 0 -1px;
   text-align: center;
   width: 60px;
   height: 15px;
   display: block;
   color: #FFFFFF;
   font-weight: bold;
-  float: left;
   text-indent: -1px;
   /*+text-shadow:0px 1px 2px #000000;*/
   -moz-text-shadow: 0px 1px 2px #000000;
@@ -3117,14 +3115,14 @@ div.toolbar div.button.main-action,
   font-size: 12px;
   font-weight: 100;
   color: #000000;
-  margin: 0 14px 0 0;
+  margin: 0 10px 0 0;
   cursor: pointer;
   /*+text-shadow:0px 1px 1px #DEE5EA;*/
   -moz-text-shadow: 0px 1px 1px #DEE5EA;
   -webkit-text-shadow: 0px 1px 1px #DEE5EA;
   -o-text-shadow: 0px 1px 1px #DEE5EA;
   text-shadow: 0px 1px 1px #DEE5EA;
-  padding: 5px 7px 5px 6px;
+  padding: 5px 5px 5px 5px;
   background: #F7F7F7;
   background: rgb(247, 247, 247);
   background: url(data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiA/Pgo8c3ZnIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgdmlld0JveD0iMCAwIDEgMSIgcHJlc2VydmVBc3BlY3RSYXRpbz0ibm9uZSI+CiAgPGxpbmVhckdyYWRpZW50IGlkPSJncmFkLXVjZ2ctZ2VuZXJhdGVkIiBncmFkaWVudFVuaXRzPSJ1c2VyU3BhY2VPblVzZSIgeDE9IjAlIiB5MT0iMCUiIHgyPSIwJSIgeTI9IjEwMCUiPgogICAgPHN0b3Agb2Zmc2V0PSIxJSIgc3RvcC1jb2xvcj0iI2Y3ZjdmNyIgc3RvcC1vcGFjaXR5PSIxIi8+CiAgICA8c3RvcCBvZmZzZXQ9IjEwMCUiIHN0b3AtY29sb3I9IiNlYWVhZWEiIHN0b3Atb3BhY2l0eT0iMSIvPgogIDwvbGluZWFyR3JhZGllbnQ+CiAgPHJlY3QgeD0iMCIgeT0iMCIgd2lkdGg9IjEiIGhlaWdodD0iMSIgZmlsbD0idXJsKCNncmFkLXVjZ2ctZ2VuZXJhdGVkKSIgLz4KPC9zdmc+);
@@ -9659,7 +9657,7 @@ div.container div.panel div#details-tab-addloadBalancer.detail-group div.loadBal
 }
 
 /*** View switcher (drop-down)*/
-.project-switcher {
+.project-switcher, .domain-switcher {
   float: left;
   width: 223px;
   padding: 9px 17px 0 19px;
@@ -9670,7 +9668,7 @@ div.container div.panel div#details-tab-addloadBalancer.detail-group div.loadBal
   border-radius: 4px;
 }
 
-.project-switcher label {
+.project-switcher label, .domain-switcher label {
   top: 29px;
   color: #FFFFFF;
   font-size: 13px;
@@ -9679,7 +9677,7 @@ div.container div.panel div#details-tab-addloadBalancer.detail-group div.loadBal
   margin-top: 5px;
 }
 
-.project-switcher select {
+.project-switcher select, .domain-switcher select {
   width: 70%;
   float: left;
   margin-top: 0px;
@@ -12365,11 +12363,13 @@ div.ui-dialog div.autoscaler div.field-group div.form-container form div.form-it
   background-position: 1px -583px;
 }
 
-.start .icon {
+.start .icon,
+.startByAdmin .icon {
   background-position: -169px -1px;
 }
 
-.start:hover .icon {
+.start:hover .icon,
+.startByAdmin:hover .icon {
   background-position: -169px -583px;
 }
 
@@ -12677,6 +12677,7 @@ div.ui-dialog div.autoscaler div.field-group div.form-container form div.form-it
   background-position: -167px -677px;
 }
 
+.revertSnapshot .icon,
 .restoreVM .icon,
 .restore .icon,
 .recover .icon {
@@ -12692,6 +12693,7 @@ div.ui-dialog div.autoscaler div.field-group div.form-container form div.form-it
   background-position: -167px -66px;
 }
 
+.revertSnapshot:hover .icon,
 .restoreVM:hover .icon,
 .restore:hover .icon {
   background-position: -168px -613px;
@@ -12747,6 +12749,14 @@ div.ui-dialog div.autoscaler div.field-group div.form-container form div.form-it
 
 .unmanage:hover .icon {
   background-position: -196px -704px;
+}
+
+.configureSamlAuthorization .icon {
+  background-position: -165px -122px;
+}
+
+.configureSamlAuthorization:hover .icon {
+  background-position: -165px -704px;
 }
 
 .viewConsole .icon {
@@ -12843,6 +12853,14 @@ div.ui-dialog div.autoscaler div.field-group div.form-container form div.form-it
 
 .addAccount:hover .icon {
   background-position: -230px -677px;
+}
+
+.linktoldap .icon {
+  background-position: -197px -65px;
+}
+
+.linktoldap:hover .icon {
+  background-position: -197px -647px;
 }
 
 .label-hovered {
@@ -12972,13 +12990,6 @@ div.ui-dialog div.autoscaler div.field-group div.form-container form div.form-it
   border-radius: 4px;
   border-radius: 4px 4px 4px 4px;
   border: 1px solid #AFAFAF;
-  -moz-box-shadow: inset 0px 1px #727272;
-  -webkit-box-shadow: inset 0px 1px #727272;
-  -o-box-shadow: inset 0px 1px #727272;
-  box-shadow: inset 0px 1px #727272;
-  -moz-box-shadow: inset 0px 1px 0px #727272;
-  -webkit-box-shadow: inset 0px 1px 0px #727272;
-  -o-box-shadow: inset 0px 1px 0px #727272;
 }
 
 .manual-account-details > *:nth-child(even) {

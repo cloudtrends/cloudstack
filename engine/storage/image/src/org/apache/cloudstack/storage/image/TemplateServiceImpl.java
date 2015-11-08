@@ -291,10 +291,10 @@ public class TemplateServiceImpl implements TemplateService {
                     List<VMTemplateVO> allTemplates = null;
                     if (zoneId == null) {
                         // region wide store
-                        allTemplates = _templateDao.listAllActive();
+                        allTemplates = _templateDao.listByState(VirtualMachineTemplate.State.Active, VirtualMachineTemplate.State.NotUploaded, VirtualMachineTemplate.State.UploadInProgress);
                     } else {
                         // zone wide store
-                        allTemplates = _templateDao.listAllInZone(zoneId);
+                        allTemplates = _templateDao.listInZoneByState(zoneId, VirtualMachineTemplate.State.Active, VirtualMachineTemplate.State.NotUploaded, VirtualMachineTemplate.State.UploadInProgress);
                     }
                     List<VMTemplateVO> rtngTmplts = _templateDao.listAllSystemVMTemplates();
                     List<VMTemplateVO> defaultBuiltin = _templateDao.listDefaultBuiltinTemplates();
@@ -334,6 +334,7 @@ public class TemplateServiceImpl implements TemplateService {
                                     String msg = "Template " + tmplt.getName() + ":" + tmplt.getId() + " is corrupted on secondary storage " + tmpltStore.getId();
                                     tmpltStore.setErrorString(msg);
                                     s_logger.info(msg);
+                                    _alertMgr.sendAlert(AlertManager.AlertType.ALERT_TYPE_UPLOAD_FAILED, zoneId, null, msg, msg);
                                     if (tmplt.getState() == VirtualMachineTemplate.State.NotUploaded || tmplt.getState() == VirtualMachineTemplate.State.UploadInProgress) {
                                         s_logger.info("Template Sync found " + uniqueName + " on image store " + storeId + " uploaded using SSVM as corrupted, marking it as failed");
                                         tmpltStore.setState(State.Failed);

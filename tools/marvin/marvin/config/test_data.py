@@ -81,16 +81,6 @@ test_data = {
         "publicport": 22,
         "protocol": 'TCP',
     },
-    "medium": {
-        "displayname": "testserver",
-        "username": "root",
-        "password": "password",
-        "ssh_port": 22,
-        "hypervisor": 'XenServer',
-        "privateport": 22,
-        "publicport": 22,
-        "protocol": 'TCP',
-    },
     "service_offering": {
         "name": "Tiny Instance",
         "displaytext": "Tiny Instance",
@@ -99,12 +89,6 @@ test_data = {
         "memory": 256,  # In MBs
     },
     "service_offerings": {
-        "name": "Tiny Instance",
-        "displaytext": "Tiny Instance",
-        "cpunumber": 1,
-        "cpuspeed": 100,
-        "memory": 128,
-
         "tiny": {
             "name": "Tiny Instance",
             "displaytext": "Tiny Instance",
@@ -379,16 +363,6 @@ test_data = {
     "virtual_machine3": {
         "name": "testvm3",
         "displayname": "Test VM3",
-    },
-    "server_without_disk": {
-        "displayname": "Test VM-No Disk",
-        "username": "root",
-        "password": "password",
-        "ssh_port": 22,
-        "hypervisor": 'XenServer',
-        "privateport": 22,
-        "publicport": 22,
-        "protocol": 'TCP',
     },
     "shared_network": {
         "name": "MySharedNetwork - Test",
@@ -741,6 +715,12 @@ test_data = {
         "publicport": 22,
         "protocol": "TCP"
     },
+   "egress_80": {
+        "startport": 80,
+        "endport": 80,
+        "protocol": "TCP",
+        "cidrlist": ["0.0.0.0/0"]
+    },
     "lbrule": {
         "name": "SSH",
         "alg": "roundrobin",
@@ -801,6 +781,15 @@ test_data = {
         "ostype": "CentOS 5.6 (64-bit)"
 
     },
+    "CentOS6.3template": {
+        "displaytext": "Centos",
+        "name": "Centos",
+        "passwordenabled": False,
+        "ostype": "CentOS 6.3 (64-bit)",
+        "url": "http://people.apache.org/~sanjeev/centos63.ova",
+        "format": "OVA",
+        "ispublic": "true"
+    },
     "template_2": {
         "displaytext": "Public Template",
         "name": "Public template",
@@ -815,7 +804,7 @@ test_data = {
         "displaytext": "Windows 7 (64-bit)",
         "name": "Windows 7 (64-bit)",
         "passwordenabled": False,
-        "url": "http://10.147.28.7/templates/windows7.vhd",
+        "url": "http://people.apache.org/~sanjeev/windows7.vhd",
         "format": "VHD",
         "ostype": "Windows 7 (64-bit)",
         "ispublic": "true",
@@ -847,7 +836,7 @@ test_data = {
         "displaytext": "win2012",
         "name": "win2012",
         "passwordenabled": False,
-        "url": "http://nfs1.lab.vmops.com/templates/vmware/new-test-win.ova",
+        "url": "http://people.apache.org/~sanjeev/new-test-win.ova",
         "format": "OVA",
         "ostype": "Windows 8 (64-bit)",
     },
@@ -855,7 +844,7 @@ test_data = {
         "displaytext": "Rhel60",
         "name": "Rhel60",
         "passwordenabled": False,
-        "url": "http://10.147.28.7/templates/Rhel/Rhel6-64bit.ova",
+        "url": "http://people.apache.org/~sanjeev/Rhel6-64bit.ova",
         "format": "OVA",
         "ostype": "Red Hat Enterprise Linux 6.0 (64-bit)"
     },
@@ -863,7 +852,7 @@ test_data = {
         "displaytext": "xs",
         "name": "xs",
         "passwordenabled": False,
-        "url": "http://10.147.28.7/templates/ttylinux_pv.vhd",
+        "url": "http://people.apache.org/~sanjeev/ttylinux_pv.vhd.bz2",
         "format": "VHD"
     },
     "security_group": {"name": "custom_Sec_Grp"},
@@ -994,16 +983,6 @@ test_data = {
         "gateway": "10.2.1.1",
         "netmask": "255.255.255.192"
     },
-    "server": {
-        "displayname": "TestVM",
-        "username": "root",
-        "password": "password",
-        "ssh_port": 22,
-        "hypervisor": 'XenServer',
-        "privateport": 22,
-        "publicport": 22,
-        "protocol": 'TCP'
-    },
     "privateport": 22,
     "publicport": 22,
     "protocol": 'TCP',
@@ -1085,7 +1064,7 @@ test_data = {
                               "displaytext": "RHEL7 (64-bit)",
                               "name": "RHEL 7 Insta1",
                               "passwordenabled": False,
-                              "url": "http://10.147.28.7/templates/Rhel/RHEL764bit.vhd",
+                              "url": "http://people.apache.org/~sanjeev/RHEL764bitwithtools.vhd",
                               "format": "VHD" ,
                               "ostype": "RHEL 7 (64-bit)",
                               "ispublic": "true",
@@ -1114,28 +1093,6 @@ test_data = {
             # ensure unique username generated each time
             "password": "password",
         },
-        "vgpu260q":  # Create a virtual machine instance with vgpu type as 260q
-            {
-                "displayname": "testserver",
-                "username": "root",  # VM creds for SSH
-                "password": "password",
-                "ssh_port": 22,
-                "hypervisor": 'XenServer',
-                "privateport": 22,
-                "publicport": 22,
-                "protocol": 'TCP',
-            },
-        "vgpu140q":  # Create a virtual machine instance with vgpu type as 140q
-            {
-                "displayname": "testserver",
-                "username": "root",
-                "password": "password",
-                "ssh_port": 22,
-                "hypervisor": 'XenServer',
-                "privateport": 22,
-                "publicport": 22,
-                "protocol": 'TCP',
-            },
         "service_offerings":
             {
                 "GRID K260Q":
@@ -1561,7 +1518,7 @@ test_data = {
                               "displaytext": "Windows 8 (64-bit)",
                               "name": "win8withpvxen",
                               "passwordenabled": False,
-                              "url": "http://10.147.28.7/templates/sailajaxd/XS65pvtemplates/win8/79211594-1d4a-4dee-ae6c-c5c315ded2be.vhd",
+                              "url": "http://people.apache.org/~sanjeev/79211594-1d4a-4dee-ae6c-c5c315ded2be.vhd",
                               "format": "VHD" ,
                               "ostype": "Windows 8 (64-bit)",
                               "ispublic": "true",
@@ -1590,17 +1547,17 @@ test_data = {
     "browser_upload_volume":{
           "VHD": {
         "diskname": "XenUploadVol",
-        "url": "http://10.147.28.7/templates/rajani-thin-volume.vhd",
+        "url": "http://people.apache.org/~sanjeev/rajani-thin-volume.vhd",
         "checksum": "09b08b6abb1b903fca7711d3ac8d6598",
                 },
           "OVA": {
         "diskname": "VMwareUploadVol",
-        "url": "http://10.147.28.7/templates/Autoscale_Template/CentOS5.5(64bit)-vmware-autoscale.ova",
+        "url": "http://people.apache.org/~sanjeev/CentOS5.5(64bit)-vmware-autoscale.ova",
         "checksum": "da997b697feaa2f1f6e0d4785b0cece2",
                 },
           "QCOW2": {
         "diskname": "KVMUploadVol",
-        "url": "http://10.147.28.7/templates/rajani-thin-volume.qcow2",
+        "url": "http://people.apache.org/~sanjeev/rajani-thin-volume.qcow2",
         "checksum": "02de0576dd3a61ab59c03fd795fc86ac",
                 },
     'browser_resized_disk_offering': {
@@ -1613,7 +1570,7 @@ test_data = {
           "VHD": {
         "templatename": "XenUploadtemplate",
         "displaytext": "XenUploadtemplate",
-        "url": "http://10.147.28.7/templates/builtin/centos56-x86_64.vhd.bz2",
+        "url": "http://people.apache.org/~sanjeev/centos56-x86_64.vhd.bz2",
         "hypervisor":"XenServer",
         "checksum": "09b08b6abb1b903fca7711d3ac8d6598",
         "ostypeid":"74affaea-c658-11e4-ad38-a6d1374244b4"
@@ -1621,7 +1578,7 @@ test_data = {
           "OVA": {
         "templatename": "VMwareUploadtemplate",
         "displaytext": "VMwareUploadtemplate",
-        "url": "http://nfs1.lab.vmops.com/templates/vmware/CentOS5.3-x86_64.ova",
+        "url": "http://people.apache.org/~sanjeev/CentOS5.3-x86_64.ova",
         "checksum": "02de0576dd3a61ab59c03fd795fc86ac",
         "hypervisor":"VMware",
         "ostypeid":"74affaea-c658-11e4-ad38-a6d1374244b4"
@@ -1629,7 +1586,7 @@ test_data = {
           "QCOW2": {
         "templatename": "KVMUploadtemplate",
         "displaytext": "VMwareUploadtemplate",
-        "url": "http://10.147.28.7/templates/builtin/eec2209b-9875-3c8d-92be-c001bd8a0faf.qcow2.bz2",
+        "url": "http://people.apache.org/~sanjeev/eec2209b-9875-3c8d-92be-c001bd8a0faf.qcow2.bz2",
         "checksum": "da997b697feaa2f1f6e0d4785b0cece2",
         "hypervisor":"KVM",
         "ostypeid":"2e02e376-cdf3-11e4-beb3-8aa6272b57ef"
@@ -1704,7 +1661,7 @@ test_data = {
                     "name": "testISO",
                     "bootable": True,
                     "ispublic": False,
-                    "url": "http://10.147.40.145/ISO/CentOS-6.3-x86_64-bin-DVD1.iso",
+                    "url": "http://people.apache.org/~sanjeev/CentOS-6.3-x86_64-bin-DVD1.iso",
                     "ostype": 'CentOS 6.3 (64-bit)',
                     "mode": 'HTTP_DOWNLOAD'
         },
@@ -1719,7 +1676,7 @@ test_data = {
             "isextractable": True,
             "mode": "HTTP_DOWNLOAD",
             "templatefilter": "self",
-            "url": "http://10.147.28.7/templates/4.3.0.2/systemvm64template-2014-09-30-4.3-vmware.ova",
+            "url": "http://people.apache.org/~sanjeev/systemvm64template-2014-09-30-4.3-vmware.ova",
             "hypervisor": "vmware",
             "format": "OVA",
             "nicadapter": "vmxnet3",

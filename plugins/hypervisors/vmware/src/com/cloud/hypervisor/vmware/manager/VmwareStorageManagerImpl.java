@@ -618,7 +618,7 @@ public class VmwareStorageManagerImpl implements VmwareStorageManager {
 
         VirtualMachineMO clonedVm = null;
         try {
-            Pair<VirtualDisk, String> volumeDeviceInfo = vmMo.getDiskDevice(volumePath, false);
+            Pair<VirtualDisk, String> volumeDeviceInfo = vmMo.getDiskDevice(volumePath);
             if (volumeDeviceInfo == null) {
                 String msg = "Unable to find related disk device for volume. volume path: " + volumePath;
                 s_logger.error(msg);
@@ -941,7 +941,7 @@ public class VmwareStorageManagerImpl implements VmwareStorageManager {
         VirtualMachineMO clonedVm = null;
         try {
 
-            Pair<VirtualDisk, String> volumeDeviceInfo = vmMo.getDiskDevice(volumePath, false);
+            Pair<VirtualDisk, String> volumeDeviceInfo = vmMo.getDiskDevice(volumePath);
             if (volumeDeviceInfo == null) {
                 String msg = "Unable to find related disk device for volume. volume path: " + volumePath;
                 s_logger.error(msg);
@@ -1187,12 +1187,12 @@ public class VmwareStorageManagerImpl implements VmwareStorageManager {
 
             if (vmMo == null) {
                 String msg = "Unable to find VM for CreateVMSnapshotCommand";
-                s_logger.debug(msg);
+                s_logger.info(msg);
 
                 return new CreateVMSnapshotAnswer(cmd, false, msg);
             } else {
                 if (vmMo.getSnapshotMor(vmSnapshotName) != null) {
-                    s_logger.debug("VM snapshot " + vmSnapshotName + " already exists");
+                    s_logger.info("VM snapshot " + vmSnapshotName + " already exists");
                 } else if (!vmMo.createSnapshot(vmSnapshotName, vmSnapshotDesc, snapshotMemory, quiescevm)) {
                     return new CreateVMSnapshotAnswer(cmd, false, "Unable to create snapshot due to esxi internal failed");
                 }
@@ -1212,6 +1212,8 @@ public class VmwareStorageManagerImpl implements VmwareStorageManager {
                     vmMo.removeSnapshot(vmSnapshotName, false);
                 }
             } catch (Exception e1) {
+                s_logger.info("[ignored]"
+                        + "error during snapshot remove: " + e1.getLocalizedMessage());
             }
 
             return new CreateVMSnapshotAnswer(cmd, false, e.getMessage());
@@ -1309,6 +1311,8 @@ public class VmwareStorageManagerImpl implements VmwareStorageManager {
             }
         }
         catch (Exception ex) {
+            s_logger.info("[ignored]"
+                    + "error getting managed object refference: " + ex.getLocalizedMessage());
         }
 
         // not managed storage, so use the standard way of getting a ManagedObjectReference for a datastore

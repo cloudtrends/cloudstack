@@ -57,11 +57,6 @@ class CsCmdLine(CsDataBag):
             self.dbag['config'] = {}
         return self.dbag['config']
 
-    def get_priority(self):
-        if "router_pr" in self.idata():
-            return self.idata()['router_pr']
-        return 99
-
     def set_guest_gw(self, val):
         self.idata()['guestgw'] = val
 
@@ -69,9 +64,6 @@ class CsCmdLine(CsDataBag):
         if "guestgw" in self.idata():
             return self.idata()['guestgw']
         return False
-
-    def set_priority(self, val):
-        self.idata()['router_pr'] = val
 
     def is_redundant(self):
         if "redundant_router" in self.idata():
@@ -102,6 +94,12 @@ class CsCmdLine(CsDataBag):
     def get_vpccidr(self):
         if "vpccidr" in self.idata():
             return self.idata()['vpccidr']
+        else:
+            return "unknown"
+
+    def get_eth2_ip(self):
+        if "eth2ip" in self.idata():
+            return self.idata()['eth2ip']
         else:
             return "unknown"
 
@@ -138,7 +136,15 @@ class CsCmdLine(CsDataBag):
         This is slightly difficult to happen, but if it does, destroy the router with the password generated with the
         code below and restart the VPC with out the clean up option.
         '''
-        passwd = "%s-%s" % (self.get_vpccidr, self.get_router_id())
+        if(self.get_type()=='router'):
+            passwd="%s-%s" % (self.get_eth2_ip(), self.get_router_id())
+        else:
+            passwd = "%s-%s" % (self.get_vpccidr(), self.get_router_id())
         md5 = hashlib.md5()
         md5.update(passwd)
         return md5.hexdigest()
+
+    def get_gateway(self):
+        if "gateway" in self.idata():
+            return self.idata()['gateway']
+        return False
