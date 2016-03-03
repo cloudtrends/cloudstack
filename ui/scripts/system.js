@@ -83,9 +83,14 @@
                         success: function (json) {
                             var domain = json.listdomainsresponse.domain[0];
 
-                            cloudStack.dialog.notice({
-                                message: '<ul><li>' + _l('label.account') + ': ' + data.account + '</li>' + '<li>' + _l('label.domain') + ': ' + domain.path + '</li></ul>'
-                            });
+                            if (data.account != null)
+                                cloudStack.dialog.notice({
+                                    message: '<ul><li>' + _l('label.account') + ': ' + data.account + '</li>' + '<li>' + _l('label.domain') + ': ' + domain.path + '</li></ul>'
+                                });
+                            else
+                                cloudStack.dialog.notice({
+                                    message: '<ul><li>' + _l('label.domain') + ': ' + domain.path + '</li></ul>'
+                                });
                         }
                     });
                 } else {
@@ -225,60 +230,64 @@
                         $.ajax({
                             url: createURL('listZones'),
                             data: {
+                                listAll: true,
                                 page: 1,
                                 pagesize: 1 //specifying pagesize as 1 because we don't need any embedded objects to be returned here. The only thing we need from API response is "count" property.
                             },
                             success: function (json) {
-                                dataFns.podCount($.extend(data, {
-                                    zoneCount: json.listzonesresponse.count ? json.listzonesresponse.count: 0,
-                                    zones: json.listzonesresponse.zone
-                                }));
+                                args.response.success({
+                                    data: {
+                                        zoneCount: json.listzonesresponse.count ? json.listzonesresponse.count: 0,
+                                        zones: json.listzonesresponse.zone
+                                    }
+                                });
                             }
                         });
+                        dataFns.podCount();
                     },
 
                     podCount: function (data) {
                         $.ajax({
                             url: createURL('listPods'),
                             data: {
+                                listAll: true,
                                 page: 1,
                                 pagesize: 1 //specifying pagesize as 1 because we don't need any embedded objects to be returned here. The only thing we need from API response is "count" property.
                             },
                             success: function (json) {
-                                dataFns.clusterCount($.extend(data, {
-                                    podCount: json.listpodsresponse.count ? json.listpodsresponse.count: 0
-                                }));
+                                args.response.success({
+                                    data: {
+                                        podCount: json.listpodsresponse.count ? json.listpodsresponse.count: 0
+                                    }
+                                });
                             }
                         });
+                        dataFns.clusterCount();
                     },
 
                     clusterCount: function (data) {
                         $.ajax({
                             url: createURL('listClusters'),
                             data: {
+                                listAll: true,
                                 page: 1,
                                 pagesize: 1 //specifying pagesize as 1 because we don't need any embedded objects to be returned here. The only thing we need from API response is "count" property.
                             },
                             success: function (json) {
-                                dataFns.hostCount($.extend(data, {
-                                    clusterCount: json.listclustersresponse.count ? json.listclustersresponse.count: 0
-                                }));
-
-                                //comment the 4 lines above and uncomment the following 4 lines if listHosts API still responds slowly.
-
-                                /*
-                                dataFns.primaryStorageCount($.extend(data, {
-                                clusterCount: json.listclustersresponse.count ?
-                                json.listclustersresponse.count : 0
-                                }));
-                                 */
+                                args.response.success({
+                                    data: {
+                                        clusterCount: json.listclustersresponse.count ? json.listclustersresponse.count: 0
+                                    }
+                                });
                             }
                         });
+                        dataFns.hostCount();
                     },
 
                     hostCount: function (data) {
                         var data2 = {
                             type: 'routing',
+                            listAll: true,
                             page: 1,
                             pagesize: 1 //specifying pagesize as 1 because we don't need any embedded objects to be returned here. The only thing we need from API response is "count" property.
                         };
@@ -286,15 +295,19 @@
                             url: createURL('listHosts'),
                             data: data2,
                             success: function (json) {
-                                dataFns.primaryStorageCount($.extend(data, {
-                                    hostCount: json.listhostsresponse.count ? json.listhostsresponse.count: 0
-                                }));
+                                args.response.success({
+                                    data: {
+                                        hostCount: json.listhostsresponse.count ? json.listhostsresponse.count: 0
+                                    }
+                                });
                             }
                         });
+                        dataFns.primaryStorageCount();
                     },
 
                     primaryStorageCount: function (data) {
                         var data2 = {
+                            listAll: true,
                             page: 1,
                             pagesize: 1 //specifying pagesize as 1 because we don't need any embedded objects to be returned here. The only thing we need from API response is "count" property.
                         };
@@ -302,15 +315,20 @@
                             url: createURL('listStoragePools'),
                             data: data2,
                             success: function (json) {
-                                dataFns.secondaryStorageCount($.extend(data, {
-                                    primaryStorageCount: json.liststoragepoolsresponse.count ? json.liststoragepoolsresponse.count: 0
-                                }));
+                                args.response.success({
+                                    data: {
+                                        primaryStorageCount: json.liststoragepoolsresponse.count ? json.liststoragepoolsresponse.count: 0
+                                    }
+                                });
                             }
                         });
+                        dataFns.secondaryStorageCount();
                     },
 
                     secondaryStorageCount: function (data) {
                         var data2 = {
+                            type: 'SecondaryStorage',
+                            listAll: true,
                             page: 1,
                             pagesize: 1 //specifying pagesize as 1 because we don't need any embedded objects to be returned here. The only thing we need from API response is "count" property.
                         };
@@ -318,26 +336,33 @@
                             url: createURL('listImageStores'),
                             data: data2,
                             success: function (json) {
-                                dataFns.systemVmCount($.extend(data, {
-                                    secondaryStorageCount: json.listimagestoresresponse.imagestore ? json.listimagestoresresponse.count: 0
-                                }));
+                                args.response.success({
+                                    data: {
+                                        secondaryStorageCount: json.listimagestoresresponse.imagestore ? json.listimagestoresresponse.count: 0
+                                    }
+                                });
                             }
                         });
+                        dataFns.systemVmCount();
                     },
 
                     systemVmCount: function (data) {
                         $.ajax({
                             url: createURL('listSystemVms'),
                             data: {
+                                listAll: true,
                                 page: 1,
                                 pagesize: 1 //specifying pagesize as 1 because we don't need any embedded objects to be returned here. The only thing we need from API response is "count" property.
                             },
                             success: function (json) {
-                                dataFns.virtualRouterCount($.extend(data, {
-                                    systemVmCount: json.listsystemvmsresponse.count ? json.listsystemvmsresponse.count: 0
-                                }));
+                                args.response.success({
+                                    data: {
+                                        systemVmCount: json.listsystemvmsresponse.count ? json.listsystemvmsresponse.count: 0
+                                    }
+                                });
                             }
                         });
+                        dataFns.virtualRouterCount();
                     },
 
                     virtualRouterCount: function (data) {
@@ -375,20 +400,22 @@
                                     });
                                 }
 
-                                        dataFns.capacity($.extend(data, {
-                                            virtualRouterCount: (total1 + total2)
-                                        }));
+                                        args.response.success({
+                                            data: {
+                                                virtualRouterCount: (total1 + total2)
+                                            }
+                                        });
                                     }
                                 });
+                                dataFns.capacity();
                     },
 
                     capacity: function (data) {
-                        if (data.zoneCount) {
-                            $.ajax({
-                                url: createURL('listCapacity'),
-                                success: function (json) {
-                                    var capacities = json.listcapacityresponse.capacity;
-
+                        $.ajax({
+                            url: createURL('listCapacity'),
+                            success: function (json) {
+                                var capacities = json.listcapacityresponse.capacity;
+                                if(capacities) {
                                     var capacityTotal = function (id, converter) {
                                         var capacity = $.grep(capacities, function (capacity) {
                                             return capacity.type == id;
@@ -403,90 +430,117 @@
                                         return total;
                                     };
 
-                                    dataFns.socketInfo($.extend(data, {
-                                        cpuCapacityTotal: capacityTotal(1, cloudStack.converters.convertHz),
-                                        memCapacityTotal: capacityTotal(0, cloudStack.converters.convertBytes),
-                                        storageCapacityTotal: capacityTotal(2, cloudStack.converters.convertBytes)
-                                    }));
+                                    args.response.success({
+                                        data: {
+                                           cpuCapacityTotal: capacityTotal(1, cloudStack.converters.convertHz),
+                                           memCapacityTotal: capacityTotal(0, cloudStack.converters.convertBytes),
+                                           storageCapacityTotal: capacityTotal(2, cloudStack.converters.convertBytes)
+                                        }
+                                    });
+
+                                } else {
+
+                                    args.response.success({
+                                        data: {
+                                            cpuCapacityTotal: cloudStack.converters.convertHz(0),
+                                            memCapacityTotal: cloudStack.converters.convertBytes(0),
+                                            storageCapacityTotal: cloudStack.converters.convertBytes(0)
+                                        }
+                                    });
+
                                 }
-                            });
-                        } else {
-                            dataFns.socketInfo($.extend(data, {
-                                cpuCapacityTotal: cloudStack.converters.convertHz(0),
-                                memCapacityTotal: cloudStack.converters.convertBytes(0),
-                                storageCapacityTotal: cloudStack.converters.convertBytes(0)
-                            }));
-                        }
+                            }
+                        });
+
+                       dataFns.socketInfo();
                     },
 
                     socketInfo: function (data) {
                         var socketCount = 0;
-                        $.ajax({
-                            url: createURL('listHypervisors'),
-                            async: false,
-                            success: function (json) {
-                                args.response.success({
-                                    data: $(json.listhypervisorsresponse.hypervisor).map(function (index, hypervisor) {
-                                        var totalHostCount = 0;
-                                        var currentPage = 1;
-                                        var returnedHostCount = 0;
-                                        var returnedHostCpusocketsSum = 0;
 
-                                        var callListHostsWithPage = function() {
-                                            $.ajax({
-                                                url: createURL('listHosts'),
-                                                async: false,
-                                                data: {
-                                                    type: 'routing',
-                                                    hypervisor: hypervisor.name,
-                                                    page: currentPage,
-                                                    pagesize: pageSize //global variable
-                                                },
-                                                success: function (json) {
-                                                    if (json.listhostsresponse.count == undefined) {
-                                                        return;
-                                                    }
+                        function listHostFunction(hypervisor, pageSizeValue) {
+                            var deferred = $.Deferred();
+                            var totalHostCount = 0;
+                            var returnedHostCount = 0;
+                            var returnedHostCpusocketsSum = 0;
 
-                                                        totalHostCount = json.listhostsresponse.count;
-                                                    returnedHostCount += json.listhostsresponse.host.length;
-
-                                                    var items = json.listhostsresponse.host;
-                                                    for (var i = 0; i < items.length; i++) {
-                                                        if (items[i].cpusockets != undefined && isNaN(items[i].cpusockets) == false) {
-                                                            returnedHostCpusocketsSum += items[i].cpusockets;
-                                                        }
-                                                    }
-
-                                                    if (returnedHostCount < totalHostCount) {
-                                                        currentPage++;
-                                                        callListHostsWithPage();
-                                                    }
-                                                }
-                                            });
+                            var callListHostsWithPage = function(page) {
+                                $.ajax({
+                                    url: createURL('listHosts'),
+                                    data: {
+                                        type: 'routing',
+                                        hypervisor: hypervisor,
+                                        page: page,
+                                        details: 'min',
+                                        pagesize: pageSizeValue
+                                    },
+                                    success: function (json) {
+                                        if (json.listhostsresponse.count == undefined) {
+                                            deferred.resolve();
+                                            return;
                                         }
 
-                                        callListHostsWithPage();
+                                        totalHostCount = json.listhostsresponse.count;
+                                        returnedHostCount += json.listhostsresponse.host.length;
 
-                                        socketCount += returnedHostCpusocketsSum;
-                                    })
+                                        var items = json.listhostsresponse.host;
+                                        for (var i = 0; i < items.length; i++) {
+                                            if (items[i].cpusockets != undefined && isNaN(items[i].cpusockets) == false) {
+                                                returnedHostCpusocketsSum += items[i].cpusockets;
+                                            }
+                                        }
+
+                                        if (returnedHostCount < totalHostCount) {
+                                            callListHostsWithPage(++page);
+                                        } else {
+                                            socketCount += returnedHostCpusocketsSum;
+                                            deferred.resolve();
+                                        }
+                                    }
+                                });
+                            }
+
+                            callListHostsWithPage(1);
+
+                            return deferred;
+
+                        }
+
+                        $.ajax({
+                            url: createURL('listConfigurations'),
+                            data: {
+                                name : 'default.page.size'
+                            },
+                            success: function (json) {
+                                pageSizeValue = json.listconfigurationsresponse.configuration[0].value;
+                                if(!pageSizeValue) {
+                                    return;
+                                }
+                                $.ajax({
+                                    url: createURL('listHypervisors'),
+                                    success: function (json) {
+                                        var deferredArray = [];
+
+                                        $(json.listhypervisorsresponse.hypervisor).map(function (index, hypervisor) {
+                                             deferredArray.push(listHostFunction(hypervisor.name, pageSizeValue));
+                                        });
+
+                                        $.when.apply(null, deferredArray).then(function(){
+                                            args.response.success({
+                                                data: {
+                                                  socketCount: socketCount
+                                                }
+                                            });
+                                        });
+                                    }
                                 });
                             }
                         });
 
-                        complete($.extend(data, {
-                            socketCount: socketCount
-                        }));
                     }
                 };
 
-                var complete = function (data) {
-                    args.response.success({
-                        data: data
-                    });
-                };
-
-                dataFns.zoneCount({
-                });
+                dataFns.zoneCount();
             }
         },
 
@@ -694,7 +748,8 @@
                                                 array1.push("&endip=" + args.data.endip);
 
                                                 if (args.data.account) {
-                                                    array1.push("&account=" + args.data.account.account);
+                                                    if (args.data.account.account)
+                                                        array1.push("&account=" + args.data.account.account);
                                                     array1.push("&domainid=" + args.data.account.domainid);
                                                 }
 
@@ -725,7 +780,7 @@
                                         },
                                         actionPreFilter: function (args) {
                                             var actionsToShow =[ 'destroy'];
-                                            if (args.context.multiRule[0].domain == 'ROOT' && args.context.multiRule[0].account.account == 'system')
+                                            if (args.context.multiRule[0].domain == 'ROOT' && args.context.multiRule[0].account != null && args.context.multiRule[0].account.account == 'system')
                                             actionsToShow.push('addAccount'); else
                                             actionsToShow.push('releaseFromAccount');
                                             return actionsToShow;
@@ -815,9 +870,13 @@
                                                     var data = {
                                                         id: args.context.multiRule[0].id,
                                                         zoneid: args.context.multiRule[0].zoneid,
-                                                        domainid: args.data.domainid,
-                                                        account: args.data.account
+                                                        domainid: args.data.domainid
                                                     };
+                                                    if (args.data.account) {
+                                                        $.extend(data, {
+                                                            account: args.data.account
+                                                        });
+                                                    }
                                                     $.ajax({
                                                         url: createURL('dedicatePublicIpRange'),
                                                         data: data,
@@ -849,7 +908,7 @@
                                                         data: $.map(items, function (item) {
                                                             return $.extend(item, {
                                                                 account: {
-                                                                    _buttonLabel: item.account,
+                                                                    _buttonLabel: item.account ? '[' + item.domain + '] ' + item.account: item.domain,
                                                                     account: item.account,
                                                                     domainid: item.domainid
                                                                 }
@@ -2662,6 +2721,15 @@
                                                         hiddenFields.push('publicip');
                                                         //In Basic zone, guest IP is public IP. So, publicip is not returned by listRouters API. Only guestipaddress is returned by listRouters API.
                                                     }
+
+                                                    if ('routers' in args.context && args.context.routers[0].vpcid != undefined) {
+                                                        hiddenFields.push('guestnetworkid');
+                                                        hiddenFields.push('guestnetworkname');
+                                                    } else if ('routers' in args.context && args.context.routers[0].guestnetworkid != undefined) {
+                                                        hiddenFields.push('vpcid');
+                                                        hiddenFields.push('vpcname');
+                                                    }
+
                                                     return hiddenFields;
                                                 },
                                                 fields:[ {
@@ -2684,6 +2752,15 @@
                                                     },
                                                     guestnetworkid: {
                                                         label: 'label.network.id'
+                                                    },
+                                                    guestnetworkname: {
+                                                        label: 'label.network.name'
+                                                    },
+                                                    vpcid: {
+                                                        label: 'label.vpc.id'
+                                                    },
+                                                    vpcname: {
+                                                        label: 'label.vpc'
                                                     },
                                                     publicip: {
                                                         label: 'label.public.ip'
@@ -3188,6 +3265,15 @@
                                                         hiddenFields.push('publicip');
                                                         //In Basic zone, guest IP is public IP. So, publicip is not returned by listRouters API. Only guestipaddress is returned by listRouters API.
                                                     }
+
+                                                    if ('routers' in args.context && args.context.routers[0].vpcid != undefined) {
+                                                        hiddenFields.push('guestnetworkid');
+                                                        hiddenFields.push('guestnetworkname');
+                                                    } else if ('routers' in args.context && args.context.routers[0].guestnetworkid != undefined) {
+                                                        hiddenFields.push('vpcid');
+                                                        hiddenFields.push('vpcname');
+                                                    }
+
                                                     return hiddenFields;
                                                 },
                                                 fields:[ {
@@ -3210,6 +3296,15 @@
                                                     },
                                                     guestnetworkid: {
                                                         label: 'label.network.id'
+                                                    },
+                                                    guestnetworkname: {
+                                                        label: 'label.network.name'
+                                                    },
+                                                    vpcid: {
+                                                        label: 'label.vpc.id'
+                                                    },
+                                                    vpcname: {
+                                                        label: 'label.vpc'
                                                     },
                                                     publicip: {
                                                         label: 'label.public.ip'
@@ -5679,6 +5774,9 @@
                                         },
                                         l3gatewayserviceuuid: {
                                             label: 'label.nicira.l3gatewayserviceuuid'
+                                        },
+										l2gatewayserviceuuid: {
+                                            label: 'label.nicira.l2gatewayserviceuuid'
                                         }
                                     }
                                 },
@@ -6712,6 +6810,15 @@
                                                         hiddenFields.push('publicip');
                                                         //In Basic zone, guest IP is public IP. So, publicip is not returned by listRouters API. Only guestipaddress is returned by listRouters API.
                                                     }
+
+                                                    if ('routers' in args.context && args.context.routers[0].vpcid != undefined) {
+                                                        hiddenFields.push('guestnetworkid');
+                                                        hiddenFields.push('guestnetworkname');
+                                                    } else if ('routers' in args.context && args.context.routers[0].guestnetworkid != undefined) {
+                                                        hiddenFields.push('vpcid');
+                                                        hiddenFields.push('vpcname');
+                                                    }
+
                                                     return hiddenFields;
                                                 },
                                                 fields:[ {
@@ -6734,6 +6841,15 @@
                                                     },
                                                     guestnetworkid: {
                                                         label: 'label.network.id'
+                                                    },
+                                                    guestnetworkname: {
+                                                        label: 'label.network.name'
+                                                    },
+                                                    vpcid: {
+                                                        label: 'label.vpc.id'
+                                                    },
+                                                    vpcname: {
+                                                        label: 'label.vpc'
                                                     },
                                                     publicip: {
                                                         label: 'label.public.ip'
@@ -7660,7 +7776,7 @@
                 }
             }
         },
-        show: cloudStack.uiCustom.physicalResources({
+        physicalResourceSection: {
             sections: {
                 physicalResources: {
                     type: 'select',
@@ -7741,6 +7857,19 @@
                                                 actionFilter: zoneActionfilter,
                                                 data: args._custom.zone
                                             });
+                                        }
+                                    }
+                                },
+                                viewMetrics: {
+                                    label: 'label.metrics',
+                                    isHeader: true,
+                                    addRow: false,
+                                    action: {
+                                        custom: cloudStack.uiCustom.metricsView({resource: 'zones'})
+                                    },
+                                    messages: {
+                                        notification: function (args) {
+                                            return 'label.metrics';
                                         }
                                     }
                                 }
@@ -9435,7 +9564,7 @@
                     }
                 }
             }
-        }),
+        },
         subsections: {
             virtualRouters: {
                 sectionSelect: {
@@ -9970,6 +10099,14 @@
                                                 }
                                             });
 
+                                            if ('routers' in args.context && args.context.routers[0].vpcid != undefined) {
+                                                hiddenFields.push('guestnetworkid');
+                                                hiddenFields.push('guestnetworkname');
+                                            } else if ('routers' in args.context && args.context.routers[0].guestnetworkid != undefined) {
+                                                hiddenFields.push('vpcid');
+                                                hiddenFields.push('vpcname');
+                                            }
+
                                             return hiddenFields;
                                         },
                                         fields:[ {
@@ -9999,6 +10136,15 @@
                                             },
                                             guestnetworkid: {
                                                 label: 'label.network.id'
+                                            },
+                                            guestnetworkname: {
+                                                label: 'label.network.name'
+                                            },
+                                            vpcid: {
+                                                label: 'label.vpc.id'
+                                            },
+                                            vpcname: {
+                                                label: 'label.vpc'
                                             },
                                             publicip: {
                                                 label: 'label.public.ip'
@@ -12396,6 +12542,9 @@
                         },
                         l3gatewayserviceuuid: {
                             label: 'label.nicira.l3gatewayserviceuuid'
+                        },
+						l2gatewayserviceuuid: {
+                            label: 'label.nicira.l2gatewayserviceuuid'
                         }
                     },
                     actions: {
@@ -12426,7 +12575,10 @@
                                     },
                                     l3gatewayserviceuuid: {
                                         label: 'label.nicira.l3gatewayserviceuuid'
-                                    }
+                                    },
+									l2gatewayserviceuuid: {
+										label: 'label.nicira.l2gatewayserviceuuid'
+									}
                                 }
                             },
                             action: function (args) {
@@ -12544,7 +12696,10 @@
                                     },
                                     l3gatewayserviceuuid: {
                                         label: 'label.nicira.l3gatewayserviceuuid'
-                                    }
+                                    },
+									l2gatewayserviceuuid: {
+										label: 'label.nicira.l2gatewayserviceuuid'
+									}
                                 }],
                                 dataProvider: function (args) {
                                     $.ajax({
@@ -14475,6 +14630,19 @@
                                     }
                                 });
                             }
+                        },
+                        viewMetrics: {
+                            label: 'label.metrics',
+                            isHeader: true,
+                            addRow: false,
+                            action: {
+                                custom: cloudStack.uiCustom.metricsView({resource: 'clusters'})
+                            },
+                            messages: {
+                                notification: function (args) {
+                                    return 'label.metrics';
+                                }
+                            }
                         }
                     },
 
@@ -15177,11 +15345,12 @@
                         }
 
                         if (! args.context.instances) {
-                            array1.push("&zoneid=" + args.context.zones[0].id);
+                            if ("zones" in args.context)
+                                array1.push("&zoneid=" + args.context.zones[0].id);
                             if ("pods" in args.context)
-                            array1.push("&podid=" + args.context.pods[0].id);
+                                array1.push("&podid=" + args.context.pods[0].id);
                             if ("clusters" in args.context)
-                            array1.push("&clusterid=" + args.context.clusters[0].id);
+                               array1.push("&clusterid=" + args.context.clusters[0].id);
                         } else {
                             //Instances menu > Instance detailView > View Hosts
                             array1.push("&id=" + args.context.instances[0].hostid);
@@ -15782,6 +15951,19 @@
                             messages: {
                                 notification: function (args) {
                                     return 'label.add.host';
+                                }
+                            }
+                        },
+                        viewMetrics: {
+                            label: 'label.metrics',
+                            isHeader: true,
+                            addRow: false,
+                            action: {
+                                custom: cloudStack.uiCustom.metricsView({resource: 'hosts'})
+                            },
+                            messages: {
+                                notification: function (args) {
+                                    return 'label.metrics';
                                 }
                             }
                         }
@@ -17596,6 +17778,19 @@
                             messages: {
                                 notification: function (args) {
                                     return 'label.add.primary.storage';
+                                }
+                            }
+                        },
+                        viewMetrics: {
+                            label: 'label.metrics',
+                            isHeader: true,
+                            addRow: false,
+                            action: {
+                                custom: cloudStack.uiCustom.metricsView({resource: 'storagepool'})
+                            },
+                            messages: {
+                                notification: function (args) {
+                                    return 'label.metrics';
                                 }
                             }
                         }
@@ -19834,6 +20029,9 @@
         }
     }
 
+    // Inject cloudStack infra page
+    cloudStack.sections.system.show = cloudStack.uiCustom.physicalResources(cloudStack.sections.system.physicalResourceSection);
+
     function addExternalLoadBalancer(args, physicalNetworkObj, apiCmd, apiCmdRes, apiCmdObj) {
         var array1 =[];
         array1.push("&physicalnetworkid=" + physicalNetworkObj.id);
@@ -20137,6 +20335,11 @@
         var l3GatewayServiceUuid = args.data.l3gatewayserviceuuid;
         if (l3GatewayServiceUuid != null && l3GatewayServiceUuid.length > 0) {
             array1.push("&l3gatewayserviceuuid=" + todb(args.data.l3gatewayserviceuuid));
+        }
+		
+		var l2GatewayServiceUuid = args.data.l2gatewayserviceuuid;
+        if (l2GatewayServiceUuid != null && l2GatewayServiceUuid.length > 0) {
+            array1.push("&l2gatewayserviceuuid=" + todb(args.data.l2gatewayserviceuuid));
         }
 
         $.ajax({

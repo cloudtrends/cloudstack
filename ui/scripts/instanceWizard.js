@@ -279,10 +279,6 @@
                         hypervisors: hypervisorObjs
                     },
                     customHidden: function(args) {
-                        ////
-                        return true; // Disabled -- not supported in backend right now
-                        ////
-
                         if (selectedTemplateOrIso == 'select-template') {
                             return false; //show Root Disk Size field
                         } else { //selectedTemplateOrIso == 'select-iso'
@@ -679,6 +675,11 @@
                                 for (var i = 0; i < items.length; i++) {
                                     securityGroupArray.push(items[i]);
                                 }
+                                securityGroupArray.sort(function(a, b){
+                                    if(a.name < b.name) return -1;
+                                    if(a.name > b.name) return 1;
+                                    return 0;
+                                })
                             }
                         }
                     });
@@ -1068,7 +1069,9 @@
                             getUpdatedItem: function(json) {
                                 var item = json.queryasyncjobresultresponse.jobresult.virtualmachine;
                                 if (item.password != null)
-                                    alert("Password of new VM " + item.displayname + " is  " + item.password);
+                                    cloudStack.dialog.notice({
+                                        message: "Password of new VM " + item.displayname + " is  " + item.password
+                                    });
                                 return item;
                             },
                             getActionFilter: function() {

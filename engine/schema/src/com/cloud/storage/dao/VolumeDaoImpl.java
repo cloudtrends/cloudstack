@@ -23,7 +23,6 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 
-import javax.ejb.Local;
 import javax.inject.Inject;
 
 import org.apache.log4j.Logger;
@@ -53,7 +52,6 @@ import com.cloud.utils.db.UpdateBuilder;
 import com.cloud.utils.exception.CloudRuntimeException;
 
 @Component
-@Local(value = VolumeDao.class)
 public class VolumeDaoImpl extends GenericDaoBase<VolumeVO, Long> implements VolumeDao {
     private static final Logger s_logger = Logger.getLogger(VolumeDaoImpl.class);
     protected final SearchBuilder<VolumeVO> DetachedAccountIdSearch;
@@ -331,6 +329,7 @@ public class VolumeDaoImpl extends GenericDaoBase<VolumeVO, Long> implements Vol
         AllFieldsSearch.and("id", AllFieldsSearch.entity().getId(), Op.EQ);
         AllFieldsSearch.and("destroyed", AllFieldsSearch.entity().getState(), Op.EQ);
         AllFieldsSearch.and("notDestroyed", AllFieldsSearch.entity().getState(), Op.NEQ);
+        AllFieldsSearch.and("updateTime", AllFieldsSearch.entity().getUpdated(), SearchCriteria.Op.LT);
         AllFieldsSearch.and("updatedCount", AllFieldsSearch.entity().getUpdatedCount(), Op.EQ);
         AllFieldsSearch.and("name", AllFieldsSearch.entity().getName(), Op.EQ);
         AllFieldsSearch.done();
@@ -478,6 +477,15 @@ public class VolumeDaoImpl extends GenericDaoBase<VolumeVO, Long> implements Vol
     public List<VolumeVO> listVolumesToBeDestroyed() {
         SearchCriteria<VolumeVO> sc = AllFieldsSearch.create();
         sc.setParameters("state", Volume.State.Destroy);
+
+        return listBy(sc);
+    }
+
+    @Override
+    public List<VolumeVO> listVolumesToBeDestroyed(Date date) {
+        SearchCriteria<VolumeVO> sc = AllFieldsSearch.create();
+        sc.setParameters("state", Volume.State.Destroy);
+        sc.setParameters("updateTime", date);
 
         return listBy(sc);
     }

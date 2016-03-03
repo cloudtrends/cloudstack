@@ -31,7 +31,6 @@ import java.util.Set;
 import java.util.Timer;
 import java.util.TimerTask;
 
-import javax.ejb.Local;
 import javax.inject.Inject;
 import javax.naming.ConfigurationException;
 
@@ -100,7 +99,6 @@ import com.cloud.vm.dao.UserVmDao;
 import com.cloud.vm.dao.VMInstanceDao;
 import com.google.common.collect.ImmutableList;
 
-@Local(value = { ContrailManager.class})
 public class ContrailManagerImpl extends ManagerBase implements ContrailManager {
     @Inject
     public ConfigurationService _configService;
@@ -183,7 +181,9 @@ public class ContrailManagerImpl extends ManagerBase implements ContrailManager 
 
     @Override
     public boolean stop() {
-        _dbSyncTimer.cancel();
+        if (_dbSyncTimer != null) {
+            _dbSyncTimer.cancel();
+        }
         return true;
     }
 

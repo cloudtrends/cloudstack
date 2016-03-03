@@ -150,6 +150,7 @@ import com.cloud.vm.UserVmVO;
 import com.cloud.vm.VMInstanceVO;
 import com.cloud.vm.VirtualMachine;
 import com.cloud.vm.VirtualMachine.State;
+import com.cloud.vm.VmDetailConstants;
 import com.cloud.vm.VmWork;
 import com.cloud.vm.VmWorkAttachVolume;
 import com.cloud.vm.VmWorkConstants;
@@ -475,6 +476,25 @@ public class VolumeApiServiceImpl extends ManagerBase implements VolumeApiServic
         });
     }
 
+    /**
+     * Retrieves the volume name from CreateVolumeCmd object.
+     *
+     * If the retrieved volume name is null, empty or blank, then A random name
+     * will be generated using getRandomVolumeName method.
+     *
+     * @param cmd
+     * @return Either the retrieved name or a random name.
+     */
+    public String getVolumeNameFromCommand(CreateVolumeCmd cmd) {
+        String userSpecifiedName = cmd.getVolumeName();
+
+        if (org.apache.commons.lang.StringUtils.isBlank(userSpecifiedName)) {
+            userSpecifiedName = getRandomVolumeName();
+        }
+
+        return userSpecifiedName;
+    }
+
     /*
      * Just allocate a volume in the database, don't send the createvolume cmd
      * to hypervisor. The volume will be finally created only when it's attached
@@ -670,10 +690,7 @@ public class VolumeApiServiceImpl extends ManagerBase implements VolumeApiServic
             throw new InvalidParameterValueException("Zone is not configured to use local storage but volume's disk offering " + diskOffering.getName() + " uses it");
         }
 
-        String userSpecifiedName = cmd.getVolumeName();
-        if (userSpecifiedName == null) {
-            userSpecifiedName = getRandomVolumeName();
-        }
+        String userSpecifiedName = getVolumeNameFromCommand(cmd);
 
         VolumeVO volume = commitVolume(cmd, caller, owner, displayVolume, zoneId, diskOfferingId, provisioningType, size,
                 minIops, maxIops, parentVolume, userSpecifiedName, _uuidMgr.generateUuid(Volume.class, cmd.getCustomId()));
@@ -1158,6 +1175,9 @@ public class VolumeApiServiceImpl extends ManagerBase implements VolumeApiServic
             if (newDiskOfferingId != null) {
                 volume.setDiskOfferingId(newDiskOfferingId);
             }
+            if (currentSize != newSize) {
+                volume.setSize(newSize);
+            }
 
             _volsDao.update(volume.getId(), volume);
 
@@ -1255,7 +1275,7 @@ public class VolumeApiServiceImpl extends ManagerBase implements VolumeApiServic
                 volOnCache.delete();
             }
 
-        } catch (Exception e) {
+        } catch (InterruptedException | ExecutionException | NoTransitionException e) {
             s_logger.warn("Failed to expunge volume:", e);
             return false;
         }
@@ -1441,6 +1461,15 @@ public class VolumeApiServiceImpl extends ManagerBase implements VolumeApiServic
         if (!(Volume.State.Allocated.equals(volumeToAttach.getState()) || Volume.State.Ready.equals(volumeToAttach.getState()) || Volume.State.Uploaded.equals(volumeToAttach
                 .getState()))) {
             throw new InvalidParameterValueException("Volume state must be in Allocated, Ready or in Uploaded state");
+        }
+
+        Account owner = _accountDao.findById(volumeToAttach.getAccountId());
+
+        try {
+            _resourceLimitMgr.checkResourceLimit(owner, ResourceType.primary_storage, volumeToAttach.getSize());
+        } catch (ResourceAllocationException e) {
+            s_logger.error("primary storage resource limit check failed", e);
+            throw new InvalidParameterValueException(e.getMessage());
         }
 
         HypervisorType rootDiskHyperType = vm.getHypervisorType();
@@ -2441,6 +2470,11 @@ public class VolumeApiServiceImpl extends ManagerBase implements VolumeApiServic
                 details.put(DiskTO.CHAP_TARGET_USERNAME, chapInfo.getTargetUsername());
                 details.put(DiskTO.CHAP_TARGET_SECRET, chapInfo.getTargetSecret());
             }
+            _userVmDao.loadDetails(vm);
+            Map<String, String> controllerInfo = new HashMap<String, String>();
+            controllerInfo.put(VmDetailConstants.ROOK_DISK_CONTROLLER, vm.getDetail(VmDetailConstants.ROOK_DISK_CONTROLLER));
+            controllerInfo.put(VmDetailConstants.DATA_DISK_CONTROLLER, vm.getDetail(VmDetailConstants.DATA_DISK_CONTROLLER));
+            cmd.setControllerInfo(controllerInfo);
 
             try {
                 answer = (AttachAnswer)_agentMgr.send(hostId, cmd);

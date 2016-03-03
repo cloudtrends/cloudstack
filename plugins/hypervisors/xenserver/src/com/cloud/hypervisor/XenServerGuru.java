@@ -20,7 +20,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import javax.ejb.Local;
 import javax.inject.Inject;
 
 import org.apache.cloudstack.engine.subsystem.api.storage.EndPoint;
@@ -60,7 +59,6 @@ import com.cloud.vm.VirtualMachineProfile;
 import com.cloud.vm.dao.UserVmDao;
 import org.apache.log4j.Logger;
 
-@Local(value = HypervisorGuru.class)
 public class XenServerGuru extends HypervisorGuruBase implements HypervisorGuru, Configurable {
     private final Logger LOGGER = Logger.getLogger(XenServerGuru.class);
     @Inject
@@ -185,7 +183,8 @@ public class XenServerGuru extends HypervisorGuruBase implements HypervisorGuru,
             DataTO srcData = cpyCommand.getSrcTO();
             DataTO destData = cpyCommand.getDestTO();
 
-            if (srcData.getObjectType() == DataObjectType.SNAPSHOT && destData.getObjectType() == DataObjectType.TEMPLATE) {
+            if (srcData.getHypervisorType() == HypervisorType.XenServer && srcData.getObjectType() == DataObjectType.SNAPSHOT &&
+                    destData.getObjectType() == DataObjectType.TEMPLATE) {
                 DataStoreTO srcStore = srcData.getDataStore();
                 DataStoreTO destStore = destData.getDataStore();
                 if (srcStore instanceof NfsTO && destStore instanceof NfsTO) {
@@ -193,9 +192,13 @@ public class XenServerGuru extends HypervisorGuruBase implements HypervisorGuru,
                     EndPoint ep = endPointSelector.selectHypervisorHost(new ZoneScope(host.getDataCenterId()));
                     host = hostDao.findById(ep.getId());
                     hostDao.loadDetails(host);
+                    String hypervisorVersion = host.getHypervisorVersion();
                     String snapshotHotFixVersion = host.getDetail(XenserverConfigs.XS620HotFix);
-                    if (snapshotHotFixVersion != null && snapshotHotFixVersion.equalsIgnoreCase(XenserverConfigs.XSHotFix62ESP1004)) {
-                        return new Pair<Boolean, Long>(Boolean.TRUE, new Long(ep.getId()));
+                    if (hypervisorVersion != null && !hypervisorVersion.equalsIgnoreCase("6.1.0")) {
+                        if (!(hypervisorVersion.equalsIgnoreCase("6.2.0") &&
+                                !(snapshotHotFixVersion != null && snapshotHotFixVersion.equalsIgnoreCase(XenserverConfigs.XSHotFix62ESP1004)))) {
+                            return new Pair<Boolean, Long>(Boolean.TRUE, new Long(ep.getId()));
+                        }
                     }
                 }
             }

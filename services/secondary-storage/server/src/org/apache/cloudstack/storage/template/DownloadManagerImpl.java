@@ -38,7 +38,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-import javax.ejb.Local;
 import javax.naming.ConfigurationException;
 
 import org.apache.cloudstack.storage.command.DownloadCommand;
@@ -49,7 +48,7 @@ import org.apache.cloudstack.storage.resource.SecondaryStorageResource;
 import org.apache.log4j.Logger;
 
 import com.cloud.agent.api.storage.DownloadAnswer;
-import com.cloud.agent.api.storage.Proxy;
+import com.cloud.utils.net.Proxy;
 import com.cloud.agent.api.to.DataStoreTO;
 import com.cloud.agent.api.to.NfsTO;
 import com.cloud.agent.api.to.S3TO;
@@ -85,11 +84,12 @@ import com.cloud.utils.script.OutputInterpreter;
 import com.cloud.utils.script.Script;
 import com.cloud.utils.storage.QCOW2Utils;
 
-@Local(value = DownloadManager.class)
 public class DownloadManagerImpl extends ManagerBase implements DownloadManager {
     private String _name;
     StorageLayer _storage;
     public Map<String, Processor> _processors;
+
+    private String _nfsVersion;
 
     public class Completion implements DownloadCompleteCallback {
         private final String jobId;
@@ -560,7 +560,9 @@ public class DownloadManagerImpl extends ManagerBase implements DownloadManager 
                     ResourceType.TEMPLATE == resourceType ? _storage.getFile(tmpDir + File.separator + TemplateLocation.Filename) : _storage.getFile(tmpDir + File.separator +
                             "volume.properties");
                     if (file.exists()) {
-                        file.delete();
+                        if(! file.delete()) {
+                            s_logger.warn("Deletion of file '" + file.getAbsolutePath() + "' failed.");
+                        }
                     }
 
                     if (!file.createNewFile()) {
@@ -708,7 +710,7 @@ public class DownloadManagerImpl extends ManagerBase implements DownloadManager 
         String installPathPrefix = cmd.getInstallPath();
         // for NFS, we need to get mounted path
         if (dstore instanceof NfsTO) {
-            installPathPrefix = resource.getRootDir(((NfsTO)dstore).getUrl()) + File.separator + installPathPrefix;
+            installPathPrefix = resource.getRootDir(((NfsTO)dstore).getUrl(), _nfsVersion) + File.separator + installPathPrefix;
         }
         String user = null;
         String password = null;
@@ -982,6 +984,7 @@ public class DownloadManagerImpl extends ManagerBase implements DownloadManager 
         String inSystemVM = (String)params.get("secondary.storage.vm");
         if (inSystemVM != null && "true".equalsIgnoreCase(inSystemVM)) {
             s_logger.info("DownloadManager: starting additional services since we are inside system vm");
+            _nfsVersion = (String)params.get("nfsVersion");
             startAdditionalServices();
             blockOutgoingOnPrivate();
         }

@@ -18,14 +18,11 @@
  */
 package org.apache.cloudstack.storage.motion;
 
-import java.util.HashMap;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 import javax.inject.Inject;
-
-import org.apache.log4j.Logger;
-import org.springframework.stereotype.Component;
 
 import org.apache.cloudstack.engine.subsystem.api.storage.CopyCommandResult;
 import org.apache.cloudstack.engine.subsystem.api.storage.DataMotionStrategy;
@@ -37,6 +34,8 @@ import org.apache.cloudstack.engine.subsystem.api.storage.VolumeInfo;
 import org.apache.cloudstack.framework.async.AsyncCompletionCallback;
 import org.apache.cloudstack.storage.datastore.db.PrimaryDataStoreDao;
 import org.apache.cloudstack.storage.to.VolumeObjectTO;
+import org.apache.log4j.Logger;
+import org.springframework.stereotype.Component;
 
 import com.cloud.agent.AgentManager;
 import com.cloud.agent.api.Answer;
@@ -59,6 +58,7 @@ import com.cloud.storage.StoragePool;
 import com.cloud.storage.VolumeVO;
 import com.cloud.storage.dao.VolumeDao;
 import com.cloud.utils.exception.CloudRuntimeException;
+import com.cloud.utils.Pair;
 import com.cloud.vm.VMInstanceVO;
 import com.cloud.vm.dao.VMInstanceDao;
 
@@ -91,21 +91,12 @@ public class XenServerStorageMotionStrategy implements DataMotionStrategy {
     }
 
     @Override
-    public Void copyAsync(DataObject srcData, DataObject destData, Host destHost, AsyncCompletionCallback<CopyCommandResult> callback) {
+    public void copyAsync(DataObject srcData, DataObject destData, Host destHost, AsyncCompletionCallback<CopyCommandResult> callback) {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public Void copyAsync(DataObject srcData, DataObject destData, AsyncCompletionCallback<CopyCommandResult> callback) {
-        CopyCommandResult result = new CopyCommandResult(null, null);
-        result.setResult("Unsupported operation requested for copying data.");
-        callback.complete(result);
-
-        return null;
-    }
-
-    @Override
-    public Void copyAsync(Map<VolumeInfo, DataStore> volumeMap, VirtualMachineTO vmTo, Host srcHost, Host destHost, AsyncCompletionCallback<CopyCommandResult> callback) {
+    public void copyAsync(Map<VolumeInfo, DataStore> volumeMap, VirtualMachineTO vmTo, Host srcHost, Host destHost, AsyncCompletionCallback<CopyCommandResult> callback) {
         Answer answer = null;
         String errMsg = null;
         try {
@@ -127,7 +118,6 @@ public class XenServerStorageMotionStrategy implements DataMotionStrategy {
         CopyCommandResult result = new CopyCommandResult(null, answer);
         result.setResult(errMsg);
         callback.complete(result);
-        return null;
     }
 
     private Answer migrateVmWithVolumesAcrossCluster(VMInstanceVO vm, VirtualMachineTO to, Host srcHost, Host destHost, Map<VolumeInfo, DataStore> volumeToPool)
@@ -135,12 +125,12 @@ public class XenServerStorageMotionStrategy implements DataMotionStrategy {
 
         // Initiate migration of a virtual machine with it's volumes.
         try {
-            Map<VolumeTO, StorageFilerTO> volumeToFilerto = new HashMap<VolumeTO, StorageFilerTO>();
+            List<Pair<VolumeTO, StorageFilerTO>> volumeToFilerto = new ArrayList<Pair<VolumeTO, StorageFilerTO>>();
             for (Map.Entry<VolumeInfo, DataStore> entry : volumeToPool.entrySet()) {
                 VolumeInfo volume = entry.getKey();
                 VolumeTO volumeTo = new VolumeTO(volume, storagePoolDao.findById(volume.getPoolId()));
                 StorageFilerTO filerTo = new StorageFilerTO((StoragePool)entry.getValue());
-                volumeToFilerto.put(volumeTo, filerTo);
+                volumeToFilerto.add(new Pair<VolumeTO, StorageFilerTO>(volumeTo, filerTo));
             }
 
             // Migration across cluster needs to be done in three phases.
@@ -193,12 +183,12 @@ public class XenServerStorageMotionStrategy implements DataMotionStrategy {
 
         // Initiate migration of a virtual machine with it's volumes.
         try {
-            Map<VolumeTO, StorageFilerTO> volumeToFilerto = new HashMap<VolumeTO, StorageFilerTO>();
+            List<Pair<VolumeTO, StorageFilerTO>> volumeToFilerto = new ArrayList<Pair<VolumeTO, StorageFilerTO>>();
             for (Map.Entry<VolumeInfo, DataStore> entry : volumeToPool.entrySet()) {
                 VolumeInfo volume = entry.getKey();
                 VolumeTO volumeTo = new VolumeTO(volume, storagePoolDao.findById(volume.getPoolId()));
                 StorageFilerTO filerTo = new StorageFilerTO((StoragePool)entry.getValue());
-                volumeToFilerto.put(volumeTo, filerTo);
+                volumeToFilerto.add(new Pair<VolumeTO, StorageFilerTO>(volumeTo, filerTo));
             }
 
             MigrateWithStorageCommand command = new MigrateWithStorageCommand(to, volumeToFilerto);

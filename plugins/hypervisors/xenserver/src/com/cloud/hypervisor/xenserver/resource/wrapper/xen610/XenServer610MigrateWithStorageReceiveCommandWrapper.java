@@ -19,9 +19,12 @@
 
 package com.cloud.hypervisor.xenserver.resource.wrapper.xen610;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.List;
 
+import com.google.gson.Gson;
 import org.apache.log4j.Logger;
 
 import com.cloud.agent.api.Answer;
@@ -38,6 +41,7 @@ import com.cloud.network.Networks.TrafficType;
 import com.cloud.resource.CommandWrapper;
 import com.cloud.resource.ResourceWrapper;
 import com.cloud.utils.exception.CloudRuntimeException;
+import com.cloud.utils.Pair;
 import com.xensource.xenapi.Connection;
 import com.xensource.xenapi.Host;
 import com.xensource.xenapi.Network;
@@ -52,22 +56,31 @@ public final class XenServer610MigrateWithStorageReceiveCommandWrapper extends C
     public Answer execute(final MigrateWithStorageReceiveCommand command, final XenServer610Resource xenServer610Resource) {
         final Connection connection = xenServer610Resource.getConnection();
         final VirtualMachineTO vmSpec = command.getVirtualMachine();
-        final Map<VolumeTO, StorageFilerTO> volumeToFiler = command.getVolumeToFiler();
+        final List<Pair<VolumeTO, StorageFilerTO>> volumeToFiler = command.getVolumeToFiler();
 
         try {
+            // In a cluster management server setup, the migrate with storage receive and send
+            // commands and answers may have to be forwarded to another management server. This
+            // happens when the host/resource on which the command has to be executed is owned
+            // by the second management server. The serialization/deserialization of the command
+            // and answers fails as the xapi SR and Network class type isn't understand by the
+            // agent attache. Seriliaze the SR and Network objects here to a string and pass in
+            // the answer object. It'll be deserialzed and object created in migrate with
+            // storage send command execution.
+            Gson gson = new Gson();
             // Get a map of all the SRs to which the vdis will be migrated.
-            final Map<VolumeTO, Object> volumeToSr = new HashMap<VolumeTO, Object>();
-            for (final Map.Entry<VolumeTO, StorageFilerTO> entry : volumeToFiler.entrySet()) {
-                final StorageFilerTO storageFiler = entry.getValue();
+            final List<Pair<VolumeTO, Object>> volumeToSr = new ArrayList<Pair<VolumeTO, Object>>();
+            for (final Pair<VolumeTO, StorageFilerTO> entry : volumeToFiler) {
+                final StorageFilerTO storageFiler = entry.second();
                 final SR sr = xenServer610Resource.getStorageRepository(connection, storageFiler.getUuid());
-                volumeToSr.put(entry.getKey(), sr);
+                volumeToSr.add(new Pair<VolumeTO, Object>(entry.first(), sr));
             }
 
             // Get the list of networks to which the vifs will attach.
-            final Map<NicTO, Object> nicToNetwork = new HashMap<NicTO, Object>();
+            final List<Pair<NicTO, Object>> nicToNetwork = new ArrayList<Pair<NicTO, Object>>();
             for (final NicTO nicTo : vmSpec.getNics()) {
                 final Network network = xenServer610Resource.getNetwork(connection, nicTo);
-                nicToNetwork.put(nicTo, network);
+                nicToNetwork.add(new Pair<NicTO, Object>(nicTo, network));
             }
 
             final XsLocalNetwork nativeNetworkForTraffic = xenServer610Resource.getNativeNetworkForTraffic(connection, TrafficType.Storage, null);

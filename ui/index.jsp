@@ -586,7 +586,7 @@
 
                                     <!-- userdata -->
                                     <div class="select">
-                                        <div class="select">
+                                        <div class="name">
                                             <span><fmt:message key="label.add.userdata"/> (<fmt:message key="label.optional"/>)</span>
                                         </div>
                                         <div class="value">
@@ -1800,6 +1800,7 @@
         <script type="text/javascript" src="scripts/ui-custom/granularSettings.js"></script>
         <script type="text/javascript" src="scripts/ui-custom/zoneChart.js"></script>
         <script type="text/javascript" src="scripts/ui-custom/dashboard.js"></script>
+        <script type="text/javascript" src="scripts/ui-custom/metricsView.js"></script>
         <script type="text/javascript" src="scripts/installWizard.js"></script>
         <script type="text/javascript" src="scripts/ui-custom/installWizard.js"></script>
         <script type="text/javascript" src="scripts/projects.js"></script>
@@ -1836,6 +1837,7 @@
         <script type="text/javascript" src="scripts/vm_snapshots.js"></script>
         <script type="text/javascript" src="scripts/ui-custom/projectSelect.js"></script>
         <script type="text/javascript" src="scripts/ui-custom/saml.js"></script>
+        <script type="text/javascript" src="scripts/metrics.js"></script>
 
         <!-- Plugin/module API -->
         <script type="text/javascript" src="scripts/ui-custom/pluginListing.js"></script>

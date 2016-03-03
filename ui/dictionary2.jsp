@@ -449,6 +449,7 @@ under the License.
 'message.attach.iso.confirm': '<fmt:message key="message.attach.iso.confirm" />',
 'message.attach.volume': '<fmt:message key="message.attach.volume" />',
 'message.basic.mode.desc': '<fmt:message key="message.basic.mode.desc" />',
+'message.change.ipaddress': '<fmt:message key="message.change.ipaddress" />',
 'message.change.offering.confirm': '<fmt:message key="message.change.offering.confirm" />',
 'message.change.password': '<fmt:message key="message.change.password" />',
 'message.configure.all.traffic.types': '<fmt:message key="message.configure.all.traffic.types" />',
@@ -1122,6 +1123,8 @@ under the License.
 'label.ssh.key.pairs': '<fmt:message key="label.ssh.key.pairs" />',
 'message.desc.create.ssh.key.pair': '<fmt:message key="message.desc.create.ssh.key.pair" />',
 'message.removed.ssh.key.pair': '<fmt:message key="message.removed.ssh.key.pair" />',
-'message.please.select.ssh.key.pair.use.with.this.vm': '<fmt:message key="message.please.select.ssh.key.pair.use.with.this.vm" />'
+'message.please.select.ssh.key.pair.use.with.this.vm': '<fmt:message key="message.please.select.ssh.key.pair.use.with.this.vm" />',
+'message.ldap.group.import': '<fmt:message key="message.ldap.group.import" />',
+'label.vpn.force.encapsulation': '<fmt:message key="label.vpn.force.encapsulation" />'
 });
 </script>

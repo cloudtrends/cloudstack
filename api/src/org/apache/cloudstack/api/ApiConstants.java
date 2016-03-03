@@ -273,6 +273,7 @@ public class ApiConstants {
     public static final String VIRTUAL_MACHINE_ID_IP = "vmidipmap";
     public static final String VIRTUAL_MACHINE_COUNT = "virtualmachinecount";
     public static final String USAGE_ID = "usageid";
+    public static final String USAGE_TYPE = "usagetype";
 
     public static final String VLAN = "vlan";
     public static final String VLAN_RANGE = "vlanrange";
@@ -491,16 +492,21 @@ public class ApiConstants {
     public static final String IKE_LIFETIME = "ikelifetime";
     public static final String ESP_LIFETIME = "esplifetime";
     public static final String DPD = "dpd";
+    public static final String FORCE_ENCAP = "forceencap";
     public static final String FOR_VPC = "forvpc";
     public static final String SHRINK_OK = "shrinkok";
     public static final String NICIRA_NVP_DEVICE_ID = "nvpdeviceid";
     public static final String NICIRA_NVP_TRANSPORT_ZONE_UUID = "transportzoneuuid";
     public static final String NICIRA_NVP_DEVICE_NAME = "niciradevicename";
     public static final String NICIRA_NVP_GATEWAYSERVICE_UUID = "l3gatewayserviceuuid";
+    public static final String NICIRA_NVP_L2_GATEWAYSERVICE_UUID = "l2gatewayserviceuuid";
     public static final String S3_ACCESS_KEY = "accesskey";
     public static final String S3_SECRET_KEY = "secretkey";
     public static final String S3_END_POINT = "endpoint";
     public static final String S3_BUCKET_NAME = "bucket";
+    public static final String S3_SIGNER = "s3signer";
+    public static final String S3_V3_SIGNER = "S3SignerType";
+    public static final String S3_V4_SIGNER = "AWSS3V4SignerType";
     public static final String S3_HTTPS_FLAG = "usehttps";
     public static final String S3_CONNECTION_TIMEOUT = "connectiontimeout";
     public static final String S3_CONNECTION_TTL = "connectionttl";

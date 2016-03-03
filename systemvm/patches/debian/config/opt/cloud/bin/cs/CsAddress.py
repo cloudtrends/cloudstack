@@ -28,7 +28,7 @@ from CsRoute import CsRoute
 from CsRule import CsRule
 
 VRRP_TYPES = ['guest']
-
+PUBLIC_INTERFACE = ['eth1']
 
 class CsAddress(CsDataBag):
 
@@ -48,15 +48,19 @@ class CsAddress(CsDataBag):
 
     def get_guest_if(self):
         """
-        Return CsInterface object for the lowest guest interface
+        Return CsInterface object for the lowest in use guest interface
         """
-        ipr = []
+        guest_interface = None
+        lowest_device = 1000
         for ip in self.get_ips():
-            if ip.is_guest():
-                ipr.append(ip)
-        if len(ipr) > 0:
-            return sorted(ipr)[-1]
-        return None
+            if ip.is_guest() and ip.is_added():
+                device = ip.get_device()
+                device_suffix = int(''.join([digit for digit in device if digit.isdigit()]))
+                if device_suffix < lowest_device:
+                    lowest_device = device_suffix
+                    guest_interface = ip
+                    logging.debug("Guest interface will be set on device '%s' and IP '%s'" % (guest_interface.get_device(), guest_interface.get_ip()))
+        return guest_interface
 
     def get_guest_ip(self):
         """
@@ -189,6 +193,9 @@ class CsInterface:
         if "nw_type" in self.address and self.address['nw_type'] in ['public']:
             return True
         return False
+    
+    def is_added(self):
+        return self.get_attr("add")
 
     def to_str(self):
         pprint(self.address)
@@ -228,10 +235,10 @@ class CsDevice:
                 continue
             self.devlist.append(vals[0])
 
-    def waitfordevice(self):
+    def waitfordevice(self, timeout=15):
         """ Wait up to 15 seconds for a device to become available """
         count = 0
-        while count < 15:
+        while count < timeout:
             if self.dev in self.devlist:
                 return True
             time.sleep(1)
@@ -314,9 +321,10 @@ class CsIP:
         for i in CsHelper.execute(cmd):
             if " DOWN " in i:
                 cmd2 = "ip link set %s up" % self.getDevice()
-                # If redundant do not bring up public interfaces
-                # master.py and keepalived will deal with them
-                if self.cl.is_redundant() and not self.is_public():
+                # If redundant only bring up public interfaces that are not eth1.
+                # Reason: private gateways are public interfaces.
+                # master.py and keepalived will deal with eth1 public interface.
+                if self.cl.is_redundant() and (not self.is_public() or self.getDevice() not in PUBLIC_INTERFACE):
                     CsHelper.execute(cmd2)
                 # if not redundant bring everything up
                 if not self.cl.is_redundant():
@@ -498,6 +506,9 @@ class CsIP:
         self.fw.append(["", "", "-A NETWORK_STATS ! -i eth0 -o eth2 -p tcp"])
         self.fw.append(["", "", "-A NETWORK_STATS -i eth2 ! -o eth0 -p tcp"])
 
+        self.fw.append(["filter", "", "-A INPUT -d 224.0.0.18/32 -j ACCEPT"])
+        self.fw.append(["filter", "", "-A INPUT -d 225.0.0.50/32 -j ACCEPT"])
+
         self.fw.append(["filter", "", "-A INPUT -p icmp -j ACCEPT"])
         self.fw.append(["filter", "", "-A INPUT -i eth0 -p tcp -m tcp --dport 3922 -m state --state NEW,ESTABLISHED -j ACCEPT"])
 
@@ -585,7 +596,7 @@ class CsIP:
 
     def arpPing(self):
         cmd = "arping -c 1 -I %s -A -U -s %s %s" % (
-            self.dev, self.address['public_ip'], self.address['public_ip'])
+            self.dev, self.address['public_ip'], self.address['gateway'])
         CsHelper.execute(cmd)
 
     # Delete any ips that are configured but not in the bag

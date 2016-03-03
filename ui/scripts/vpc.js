@@ -638,7 +638,7 @@
                             args.response.success({
                                 _custom: {
                                     jobId: jobID,
-                                    getUpdateIdtem: function() {
+                                    getUpdatedItem: function() {
                                         $(window).trigger('cloudStack.fullRefresh');
                                     }
                                 },
@@ -748,7 +748,8 @@
                         $.ajax({
                             url: createURL('listLoadBalancers'),
                             data: {
-                                networkid: args.context.networks[0].id
+                                networkid: args.context.networks[0].id,
+                                listAll: true
                             },
                             success: function(json) {
                                 var items = json.listloadbalancersresponse.loadbalancer;
@@ -1132,7 +1133,8 @@
                             async: false,
                             data: {
                                 associatednetworkid: args.context.networks[0].id,
-                                forloadbalancing: true
+                                forloadbalancing: true,
+                                listall: true
                             },
                             success: function(json) {
                                 var items = json.listpublicipaddressesresponse.publicipaddress;
@@ -1225,12 +1227,19 @@
                                     url: createURL('createNetworkACLList&vpcid=' + args.context.vpc[0].id),
                                     data: data,
                                     success: function(json) {
-                                        var items = json.createnetworkacllistresponse;
                                         args.response.success({
-                                            data: items
+                                            _custom: {
+                                                jobId: json.createnetworkacllistresponse.jobid,
+                                                getUpdatedItem: function(json) {
+                                                    return json.queryasyncjobresultresponse.jobresult.networkacllist;
+                                                }
+                                            }
                                         });
                                     }
                                 });
+                            },
+                            notification: {
+                                poll: pollAsyncJobResult
                             }
                         }
                     },
@@ -1255,7 +1264,10 @@
                                             var jid = json.deletenetworkacllistresponse.jobid;
                                             args.response.success({
                                                 _custom: {
-                                                    jobId: jid
+                                                    jobId: jid,
+                                                    getUpdatedItem: function() {
+                                                        $(window).trigger('cloudStack.fullRefresh');
+                                                    }
                                                 }
                                             });
                                         },
@@ -1292,9 +1304,8 @@
                                             data: items,
                                             actionFilter: function(args) {
                                                 var allowedActions = [];
-                                                if (isAdmin() && items.vpcid) {
+                                                if (items.vpcid != null) {
                                                     allowedActions.push("remove");
-
                                                 }
                                                 return allowedActions;
                                             }
@@ -1507,7 +1518,9 @@
                             },
                             complete: function(args) {
                                 if (args.password != null) {
-                                    alert('Password of the VM is ' + args.password);
+                                    cloudStack.dialog.notice({
+                                        message: 'Password of the VM is ' + args.password
+                                    });
                                 }
                                 return 'label.action.start.instance';
                             }
@@ -2682,6 +2695,7 @@
                                         $.ajax({
                                             url: createURL("listVpnGateways"),
                                             data: {
+                                                listAll: true,
                                                 id: args.context.vpnGateway[0].id
                                             },
                                             async: true,
@@ -2804,6 +2818,7 @@
                                     $.ajax({
                                         url: createURL('listVpnGateways'),
                                         data: {
+                                            listAll: true,
                                             vpcid: args.context.vpc[0].id
                                         },
                                         async: false,
@@ -2887,6 +2902,12 @@
                                         },
                                         dpd: {
                                             label: 'label.dead.peer.detection',
+                                            converter: function(str) {
+                                                return str ? 'Yes' : 'No';
+                                            }
+                                        },
+                                        forceencap: {
+                                            label: 'label.vpn.force.encapsulation',
                                             converter: function(str) {
                                                 return str ? 'Yes' : 'No';
                                             }
@@ -4187,6 +4208,7 @@
                             url: createURL('listVpnGateways'),
                             async: false,
                             data: {
+                                listAll: true,
                                 'vpcid': args.context.vpc[0].id
                             },
                             success: function(json) {

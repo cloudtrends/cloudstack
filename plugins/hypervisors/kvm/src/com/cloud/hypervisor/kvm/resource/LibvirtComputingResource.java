@@ -85,6 +85,7 @@ import com.cloud.agent.api.to.IpAddressTO;
 import com.cloud.agent.api.to.NfsTO;
 import com.cloud.agent.api.to.NicTO;
 import com.cloud.agent.api.to.VirtualMachineTO;
+import com.cloud.agent.resource.virtualnetwork.VRScripts;
 import com.cloud.agent.resource.virtualnetwork.VirtualRouterDeployer;
 import com.cloud.agent.resource.virtualnetwork.VirtualRoutingResource;
 import com.cloud.dc.Vlan;
@@ -614,7 +615,7 @@ public class LibvirtComputingResource extends ServerResourceBase implements Serv
 
         _clusterId = (String)params.get("cluster");
 
-        _updateHostPasswdPath = Script.findScript(hypervisorScriptsDir, "update_host_passwd.sh");
+        _updateHostPasswdPath = Script.findScript(hypervisorScriptsDir, VRScripts.UPDATE_HOST_PASSWD);
         if (_updateHostPasswdPath == null) {
             throw new ConfigurationException("Unable to find update_host_passwd.sh");
         }
@@ -968,11 +969,11 @@ public class LibvirtComputingResource extends ServerResourceBase implements Serv
     protected void configureDiskActivityChecks(final Map<String, Object> params) {
         _diskActivityCheckEnabled = Boolean.parseBoolean((String)params.get("vm.diskactivity.checkenabled"));
         if (_diskActivityCheckEnabled) {
-            int timeout = NumbersUtil.parseInt((String)params.get("vm.diskactivity.checktimeout_s"), 0);
+            final int timeout = NumbersUtil.parseInt((String)params.get("vm.diskactivity.checktimeout_s"), 0);
             if (timeout > 0) {
                 _diskActivityCheckTimeoutSeconds = timeout;
             }
-            long inactiveTime = NumbersUtil.parseLong((String)params.get("vm.diskactivity.inactivetime_ms"), 0L);
+            final long inactiveTime = NumbersUtil.parseLong((String)params.get("vm.diskactivity.inactivetime_ms"), 0L);
             if (inactiveTime > 0) {
                 _diskActivityInactiveThresholdMilliseconds = inactiveTime;
             }
@@ -1169,17 +1170,17 @@ public class LibvirtComputingResource extends ServerResourceBase implements Serv
         return "";
     }
 
-    String [] _ifNamePrefixes = {
-            "eth",
-            "bond",
-            "vlan",
-            "vx",
-            "em",
-            "ens",
-            "eno",
-            "enp",
-            "team",
-            "enx",
+    String [] _ifNamePatterns = {
+            "^eth",
+            "^bond",
+            "^vlan",
+            "^vx",
+            "^em",
+            "^ens",
+            "^eno",
+            "^enp",
+            "^team",
+            "^enx",
             "^p\\d+p\\d+"
     };
     /**
@@ -1188,8 +1189,8 @@ public class LibvirtComputingResource extends ServerResourceBase implements Serv
      */
     boolean isInterface(final String fname) {
         StringBuffer commonPattern = new StringBuffer();
-        for (String ifNamePrefix : _ifNamePrefixes) {
-            commonPattern.append("|(").append(ifNamePrefix).append(".*)");
+        for (final String ifNamePattern : _ifNamePatterns) {
+            commonPattern.append("|(").append(ifNamePattern).append(".*)");
         }
         if(fname.matches(commonPattern.toString())) {
             return true;
@@ -2076,7 +2077,7 @@ public class LibvirtComputingResource extends ServerResourceBase implements Serv
                 s_logger.debug("Checking physical disk file at path " + volPath + " for disk activity to ensure vm is not running elsewhere");
                 try {
                     HypervisorUtils.checkVolumeFileForActivity(volPath, _diskActivityCheckTimeoutSeconds, _diskActivityInactiveThresholdMilliseconds, _diskActivityCheckFileSizeMin);
-                } catch (IOException ex) {
+                } catch (final IOException ex) {
                     throw new CloudRuntimeException("Unable to check physical disk file for activity", ex);
                 }
                 s_logger.debug("Disk activity check cleared");
@@ -2140,6 +2141,7 @@ public class LibvirtComputingResource extends ServerResourceBase implements Serv
 
             if (data instanceof VolumeObjectTO) {
                 final VolumeObjectTO volumeObjectTO = (VolumeObjectTO)data;
+                disk.setSerial(diskUuidToSerial(volumeObjectTO.getUuid()));
                 if (volumeObjectTO.getBytesReadRate() != null && volumeObjectTO.getBytesReadRate() > 0) {
                     disk.setBytesReadRate(volumeObjectTO.getBytesReadRate());
                 }
@@ -2199,6 +2201,17 @@ public class LibvirtComputingResource extends ServerResourceBase implements Serv
     }
 
     private void createVif(final LibvirtVMDef vm, final NicTO nic, final String nicAdapter) throws InternalErrorException, LibvirtException {
+
+        if (nic.getType().equals(TrafficType.Guest) && nic.getBroadcastType().equals(BroadcastDomainType.Vsp)) {
+            String vrIp = nic.getBroadcastUri().getPath().substring(1);
+            vm.getMetaData().getMetadataNode(LibvirtVMDef.NuageExtensionDef.class).addNuageExtension(nic.getMac(), vrIp);
+
+            if (s_logger.isDebugEnabled()) {
+                s_logger.debug("NIC with MAC " + nic.getMac() + " and BroadcastDomainType " + nic.getBroadcastType() + " in network(" + nic.getGateway() + "/" + nic.getNetmask()
+                        + ") is " + nic.getType() + " traffic type. So, vsp-vr-ip " + vrIp + " is set in the metadata");
+            }
+        }
+
         vm.getDevices().addDevice(getVifDriver(nic.getType()).plug(nic, vm.getPlatformEmulator().toString(), nicAdapter).toString());
     }
 
@@ -2417,6 +2430,11 @@ public class LibvirtComputingResource extends ServerResourceBase implements Serv
         } else {
             return new StartupCommand[] {cmd};
         }
+    }
+
+    public String diskUuidToSerial(String uuid) {
+        String uuidWithoutHyphen = uuid.replace("-","");
+        return uuidWithoutHyphen.substring(0, Math.min(uuidWithoutHyphen.length(), 20));
     }
 
     private String getIqn() {

@@ -26,7 +26,7 @@
   <parent>
     <groupId>org.apache.cloudstack</groupId>
     <artifactId>cloudstack</artifactId>
-    <version>4.6.0-SNAPSHOT</version>
+    <version>4.9.0-SNAPSHOT</version>
   </parent>
 
   <build>
@@ -101,6 +101,7 @@
     <module>network-elements/internal-loadbalancer</module>
     <module>network-elements/vxlan</module>
     <module>network-elements/globodns</module>
+    <module>database/quota</module>
   </modules>
 
   <dependencies>

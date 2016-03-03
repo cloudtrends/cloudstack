@@ -19,7 +19,7 @@
 
 package com.cloud.network.dao;
 
-import javax.ejb.Local;
+import java.util.List;
 
 import org.springframework.stereotype.Component;
 
@@ -30,7 +30,6 @@ import com.cloud.utils.db.SearchCriteria;
 import com.cloud.utils.db.SearchCriteria.Op;
 
 @Component
-@Local(value = NiciraNvpRouterMappingDao.class)
 public class NiciraNvpRouterMappingDaoImpl extends GenericDaoBase<NiciraNvpRouterMappingVO, Long> implements NiciraNvpRouterMappingDao {
 
     protected final SearchBuilder<NiciraNvpRouterMappingVO> networkSearch;
@@ -46,6 +45,14 @@ public class NiciraNvpRouterMappingDaoImpl extends GenericDaoBase<NiciraNvpRoute
         SearchCriteria<NiciraNvpRouterMappingVO> sc = networkSearch.create();
         sc.setParameters("network_id", id);
         return findOneBy(sc);
+    }
+
+    @Override
+    public boolean existsMappingForNetworkId(long id) {
+        SearchCriteria<NiciraNvpRouterMappingVO> sc = networkSearch.create();
+        sc.setParameters("network_id", id);
+        List<NiciraNvpRouterMappingVO> mappings = search(sc, null);
+        return mappings.size() > 0;
     }
 
 }

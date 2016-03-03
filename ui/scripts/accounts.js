@@ -162,7 +162,7 @@
                                     }
                                 },
                                 error: function(xhr) {
-                                },
+                                }
                             });
                         }
                     },
@@ -1337,7 +1337,7 @@
                                             $.ajax({
                                                 url: createURL('listSamlAuthorization'),
                                                 data: {
-                                                    userid: context.users[0].id,
+                                                    userid: context.users[0].id
                                                 },
                                                 success: function(json) {
                                                     var authorization = json.listsamlauthorizationsresponse.samlauthorization[0];
@@ -1876,10 +1876,14 @@
                                 },
                                 action: function(args) {
                                     var data = {
-                                        domainid: args.context.sshkeypairs[0].domainid,
-                                        account: args.context.sshkeypairs[0].account,
                                         name: args.context.sshkeypairs[0].name
                                     };
+                                    if (!args.context.projects) {
+                                        $.extend(data, {
+                                            domainid: args.context.sshkeypairs[0].domainid,
+                                            account: args.context.sshkeypairs[0].account
+                                        });
+                                    }
                                     $.ajax({
                                         url: createURL('deleteSSHKeyPair'),
                                         data: data,

@@ -90,9 +90,11 @@ public class NiciraRestClient extends BasicRestClient {
         if (HttpStatusCodeHelper.isUnauthorized(statusCode)) {
             return handleUnauthorizedResponse(request, previousStatusCode, response, statusCode);
         } else if (HttpStatusCodeHelper.isSuccess(statusCode)) {
-            return handleSuccessResponse(response);
+            return handleSuccessResponse(request, response);
+        } else if (HttpStatusCodeHelper.isConflict(statusCode)) {
+            throw new CloudstackRESTException("Conflict: " + statusLine.getReasonPhrase(), statusCode);
         } else {
-            throw new CloudstackRESTException("Unexpecetd status code: " + statusCode);
+            throw new CloudstackRESTException("Unexpected status code: " + statusCode, statusCode);
         }
     }
 
@@ -110,8 +112,10 @@ public class NiciraRestClient extends BasicRestClient {
         return execute(request, loginStatusCode);
     }
 
-    private CloseableHttpResponse handleSuccessResponse(final CloseableHttpResponse response) {
-        counter.resetExecutionCounter();
+    private CloseableHttpResponse handleSuccessResponse(final HttpUriRequest request, final CloseableHttpResponse response) {
+        if (!request.getURI().getPath().contains(loginUrl)) {
+            counter.resetExecutionCounter();
+        }
         return response;
     }
 

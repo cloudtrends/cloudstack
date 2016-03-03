@@ -36,7 +36,6 @@ import javax.inject.Inject;
 import org.apache.cloudstack.utils.usage.UsageUtils;
 import org.apache.log4j.Logger;
 import org.springframework.stereotype.Component;
-
 import org.apache.cloudstack.engine.subsystem.api.storage.DataStore;
 import org.apache.cloudstack.engine.subsystem.api.storage.DataStoreManager;
 import org.apache.cloudstack.engine.subsystem.api.storage.EndPoint;
@@ -90,6 +89,7 @@ import com.cloud.resource.ResourceManager;
 import com.cloud.resource.ResourceState;
 import com.cloud.service.ServiceOfferingVO;
 import com.cloud.service.dao.ServiceOfferingDao;
+import com.cloud.storage.ImageStoreDetailsUtil;
 import com.cloud.storage.StorageManager;
 import com.cloud.storage.StorageStats;
 import com.cloud.storage.VolumeStats;
@@ -125,11 +125,11 @@ import com.cloud.vm.dao.VMInstanceDao;
 @Component
 public class StatsCollector extends ManagerBase implements ComponentMethodInterceptable {
 
-    public static enum externalStatsProtocol {
+    public static enum ExternalStatsProtocol {
         NONE("none"), GRAPHITE("graphite");
         String _type;
 
-        externalStatsProtocol(String type) {
+        ExternalStatsProtocol(String type) {
             _type = type;
         }
 
@@ -198,6 +198,8 @@ public class StatsCollector extends ManagerBase implements ComponentMethodInterc
     private ServiceOfferingDao _serviceOfferingDao;
     @Inject
     private HostGpuGroupsDao _hostGpuGroupsDao;
+    @Inject
+    private ImageStoreDetailsUtil imageStoreDetailsUtil;
 
     private ConcurrentHashMap<Long, HostStats> _hostStats = new ConcurrentHashMap<Long, HostStats>();
     private final ConcurrentHashMap<Long, VmStats> _VmStats = new ConcurrentHashMap<Long, VmStats>();
@@ -218,7 +220,7 @@ public class StatsCollector extends ManagerBase implements ComponentMethodInterc
     String externalStatsHost = null;
     int externalStatsPort = -1;
     boolean externalStatsEnabled = false;
-    externalStatsProtocol externalStatsType = externalStatsProtocol.NONE;
+    ExternalStatsProtocol externalStatsType = ExternalStatsProtocol.NONE;
 
     private ScheduledExecutorService _diskStatsUpdateExecutor;
     private int _usageAggregationRange = 1440;
@@ -266,7 +268,7 @@ public class StatsCollector extends ManagerBase implements ComponentMethodInterc
                 String scheme = uri.getScheme();
 
                 try {
-                    externalStatsType = externalStatsProtocol.valueOf(scheme.toUpperCase());
+                    externalStatsType = ExternalStatsProtocol.valueOf(scheme.toUpperCase());
                 } catch (IllegalArgumentException e) {
                     s_logger.info(scheme + " is not a valid protocol for external statistics. No statistics will be send.");
                 }
@@ -492,7 +494,7 @@ public class StatsCollector extends ManagerBase implements ComponentMethodInterc
                              * Currently only Graphite is supported
                              */
                             if (!metrics.isEmpty()) {
-                                if (externalStatsType != null && externalStatsType == externalStatsProtocol.GRAPHITE) {
+                                if (externalStatsType != null && externalStatsType == ExternalStatsProtocol.GRAPHITE) {
 
                                     if (externalStatsPort == -1) {
                                         externalStatsPort = 2003;
@@ -715,7 +717,7 @@ public class StatsCollector extends ManagerBase implements ComponentMethodInterc
                         continue;
                     }
 
-                    GetStorageStatsCommand command = new GetStorageStatsCommand(store.getTO());
+                    GetStorageStatsCommand command = new GetStorageStatsCommand(store.getTO(), imageStoreDetailsUtil.getNfsVersion(store.getId()));
                     EndPoint ssAhost = _epSelector.select(store);
                     if (ssAhost == null) {
                         s_logger.debug("There is no secondary storage VM for secondary storage host " + store.getName());
@@ -762,6 +764,7 @@ public class StatsCollector extends ManagerBase implements ComponentMethodInterc
                 s_logger.error("Error trying to retrieve storage stats", t);
             }
         }
+
     }
 
     class AutoScaleMonitor extends ManagedContextRunnable {

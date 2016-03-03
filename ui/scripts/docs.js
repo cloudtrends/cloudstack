@@ -1008,7 +1008,7 @@ cloudStack.docs = {
     },
     // Add volume
     helpVolumeName: {
-        desc: 'Give the volume a unique name so you can find it later.',
+        desc: 'Give a unique volume name. If it is not provided, a name will be generated randomly.',
         externalLink: ''
     },
     helpVolumeAvailabilityZone: {
@@ -1116,6 +1116,10 @@ cloudStack.docs = {
     },
     helpVPNGatewayDeadPeerDetection: {
         desc: 'Check this to make the virtual router query its IKE peer at regular intervals to ensure continued availability. It is recommended to have the same DPD setting on both sides of the VPN connection.',
+        externalLink: ''
+    },
+    helpVPNGatewayForceEncapsulation: {
+        desc: 'Force UDP encapsulation for ESP packets even if no NAT situation is detected. This may help to surmount restrictive firewalls. In order to force the peer to encapsulate packets, NAT detection payloads are faked',
         externalLink: ''
     },
     // Copy template

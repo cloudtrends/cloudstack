@@ -80,9 +80,11 @@ import com.vmware.vim25.VirtualDeviceBackingInfo;
 import com.vmware.vim25.VirtualDeviceConfigSpec;
 import com.vmware.vim25.VirtualDeviceConfigSpecOperation;
 import com.vmware.vim25.VirtualDisk;
+import com.vmware.vim25.VirtualDiskFlatVer2BackingInfo;
 import com.vmware.vim25.VirtualEthernetCard;
 import com.vmware.vim25.VirtualEthernetCardDistributedVirtualPortBackingInfo;
 import com.vmware.vim25.VirtualEthernetCardNetworkBackingInfo;
+import com.vmware.vim25.VirtualEthernetCardOpaqueNetworkBackingInfo;
 import com.vmware.vim25.VirtualMachineConfigSpec;
 import com.vmware.vim25.VirtualMachineFileInfo;
 import com.vmware.vim25.VirtualMachineFileLayoutEx;
@@ -92,6 +94,7 @@ import com.vmware.vim25.VirtualMachinePowerState;
 import com.vmware.vim25.VirtualMachineRelocateSpec;
 import com.vmware.vim25.VirtualMachineRelocateSpecDiskLocator;
 import com.vmware.vim25.VirtualMachineRuntimeInfo;
+import com.vmware.vim25.VirtualMachineVideoCard;
 import com.vmware.vim25.VmwareDistributedVirtualSwitchVlanIdSpec;
 
 import org.apache.cloudstack.storage.command.StorageSubSystemCommand;
@@ -270,6 +273,7 @@ import com.cloud.utils.exception.ExceptionUtil;
 import com.cloud.utils.mgmt.JmxUtil;
 import com.cloud.utils.mgmt.PropertyMapDynamicBean;
 import com.cloud.utils.net.NetUtils;
+import com.cloud.utils.nicira.nvp.plugin.NiciraNvpApiVersion;
 import com.cloud.utils.ssh.SshHelper;
 import com.cloud.vm.VirtualMachine;
 import com.cloud.vm.VirtualMachine.PowerState;
@@ -594,7 +598,18 @@ public class VmwareResource implements StoragePoolResource, ServerResource, Vmwa
                     s_logger.trace("resize volume done (failed)");
                 throw new Exception("No such disk device: " + path);
             }
+            // IDE virtual disk cannot be re-sized if VM is running
+            if (vdisk.second() != null && vdisk.second().contains("ide")) {
+                throw new Exception("Re-sizing a virtual disk over IDE controller is not supported in VMware hypervisor. " +
+                            "Please re-try when virtual disk is attached to a VM using SCSI controller.");
+            }
+
             VirtualDisk disk = vdisk.first();
+            String vmdkAbsFile = getAbsoluteVmdkFile(disk);
+            if (vmdkAbsFile != null && !vmdkAbsFile.isEmpty()) {
+                vmMo.updateAdapterTypeIfRequired(vmdkAbsFile);
+            }
+
             disk.setCapacityInKB(newSize);
 
             VirtualMachineConfigSpec vmConfigSpec = new VirtualMachineConfigSpec();
@@ -935,8 +950,8 @@ public class VmwareResource implements StoragePoolResource, ServerResource, Vmwa
             NicTO nicTo = cmd.getNic();
             VirtualDevice nic;
             Pair<ManagedObjectReference, String> networkInfo = prepareNetworkFromNicInfo(vmMo.getRunningHost(), nicTo, false, cmd.getVMType());
+            String dvSwitchUuid = null;
             if (VmwareHelper.isDvPortGroup(networkInfo.first())) {
-                String dvSwitchUuid;
                 ManagedObjectReference dcMor = hyperHost.getHyperHostDatacenter();
                 DatacenterMO dataCenterMo = new DatacenterMO(context, dcMor);
                 ManagedObjectReference dvsMor = dataCenterMo.getDvSwitchMor(networkInfo.first());
@@ -959,7 +974,7 @@ public class VmwareResource implements StoragePoolResource, ServerResource, Vmwa
             deviceConfigSpec.setOperation(VirtualDeviceConfigSpecOperation.ADD);
 
             vmConfigSpec.getDeviceChange().add(deviceConfigSpec);
-            setNuageVspVrIpInExtraConfig(vmConfigSpec.getExtraConfig(), nicTo);
+            setNuageVspVrIpInExtraConfig(vmConfigSpec.getExtraConfig(), nicTo, dvSwitchUuid);
             if (!vmMo.configureVm(vmConfigSpec)) {
                 throw new Exception("Failed to configure devices when running PlugNicCommand");
             }
@@ -1325,6 +1340,63 @@ public class VmwareResource implements StoragePoolResource, ServerResource, Vmwa
         return new ScaleVmAnswer(cmd, true, null);
     }
 
+    protected void ensureDiskControllers(VirtualMachineMO vmMo, Pair<String, String> controllerInfo) throws Exception {
+        if (vmMo == null) {
+            return;
+        }
+
+        String msg;
+        String rootDiskController = controllerInfo.first();
+        String dataDiskController = controllerInfo.second();
+        String scsiDiskController;
+        String recommendedDiskController = null;
+
+        if (VmwareHelper.isControllerOsRecommended(dataDiskController) || VmwareHelper.isControllerOsRecommended(rootDiskController)) {
+            recommendedDiskController = vmMo.getRecommendedDiskController(null);
+        }
+        scsiDiskController = HypervisorHostHelper.getScsiController(new Pair<String, String>(rootDiskController, dataDiskController), recommendedDiskController);
+        if (scsiDiskController == null) {
+            return;
+        }
+
+        vmMo.getScsiDeviceControllerKeyNoException();
+        // This VM needs SCSI controllers.
+        // Get count of existing scsi controllers. Helps not to attempt to create more than the maximum allowed 4
+        // Get maximum among the bus numbers in use by scsi controllers. Safe to pick maximum, because we always go sequential allocating bus numbers.
+        Ternary<Integer, Integer, DiskControllerType> scsiControllerInfo = vmMo.getScsiControllerInfo();
+        int requiredNumScsiControllers = VmwareHelper.MAX_SCSI_CONTROLLER_COUNT - scsiControllerInfo.first();
+        int availableBusNum = scsiControllerInfo.second() + 1; // method returned current max. bus number
+
+        if (requiredNumScsiControllers == 0) {
+            return;
+        }
+        if (scsiControllerInfo.first() > 0) {
+            // For VMs which already have a SCSI controller, do NOT attempt to add any more SCSI controllers & return the sub type.
+            // For Legacy VMs would have only 1 LsiLogic Parallel SCSI controller, and doesn't require more.
+            // For VMs created post device ordering support, 4 SCSI subtype controllers are ensured during deployment itself. No need to add more.
+            // For fresh VM deployment only, all required controllers should be ensured.
+            return;
+        }
+        ensureScsiDiskControllers(vmMo, scsiDiskController, requiredNumScsiControllers, availableBusNum);
+    }
+
+    private void ensureScsiDiskControllers(VirtualMachineMO vmMo, String scsiDiskController, int requiredNumScsiControllers, int availableBusNum) throws Exception {
+        // Pick the sub type of scsi
+        if (DiskControllerType.getType(scsiDiskController) == DiskControllerType.pvscsi) {
+            if (!vmMo.isPvScsiSupported()) {
+                String msg = "This VM doesn't support Vmware Paravirtual SCSI controller for virtual disks, because the virtual hardware version is less than 7.";
+                throw new Exception(msg);
+            }
+            vmMo.ensurePvScsiDeviceController(requiredNumScsiControllers, availableBusNum);
+        } else if (DiskControllerType.getType(scsiDiskController) == DiskControllerType.lsisas1068) {
+            vmMo.ensureLsiLogicSasDeviceControllers(requiredNumScsiControllers, availableBusNum);
+        } else if (DiskControllerType.getType(scsiDiskController) == DiskControllerType.buslogic) {
+            vmMo.ensureBusLogicDeviceControllers(requiredNumScsiControllers, availableBusNum);
+        } else if (DiskControllerType.getType(scsiDiskController) == DiskControllerType.lsilogic) {
+            vmMo.ensureScsiDeviceControllers(requiredNumScsiControllers, availableBusNum);
+        }
+    }
+
     protected StartAnswer execute(StartCommand cmd) {
         if (s_logger.isInfoEnabled()) {
             s_logger.info("Executing resource StartCommand: " + _gson.toJson(cmd));
@@ -1340,7 +1412,29 @@ public class VmwareResource implements StoragePoolResource, ServerResource, Vmwa
         Pair<String, String> names = composeVmNames(vmSpec);
         String vmInternalCSName = names.first();
         String vmNameOnVcenter = names.second();
+        String dataDiskController = vmSpec.getDetails().get(VmDetailConstants.DATA_DISK_CONTROLLER);
+        String rootDiskController = vmSpec.getDetails().get(VmDetailConstants.ROOK_DISK_CONTROLLER);
 
+        // If root disk controller is scsi, then data disk controller would also be scsi instead of using 'osdefault'
+        // This helps avoid mix of different scsi subtype controllers in instance.
+        if (DiskControllerType.lsilogic == DiskControllerType.getType(rootDiskController)) {
+            dataDiskController = DiskControllerType.scsi.toString();
+        }
+
+        // Validate the controller types
+        dataDiskController = DiskControllerType.getType(dataDiskController).toString();
+        rootDiskController = DiskControllerType.getType(rootDiskController).toString();
+
+        if (DiskControllerType.getType(rootDiskController) == DiskControllerType.none) {
+            throw new CloudRuntimeException("Invalid root disk controller detected : " + rootDiskController);
+        }
+        if (DiskControllerType.getType(dataDiskController) == DiskControllerType.none) {
+            throw new CloudRuntimeException("Invalid data disk controller detected : " + dataDiskController);
+        }
+
+        Pair<String, String> controllerInfo = new Pair<String, String>(rootDiskController, dataDiskController);
+
+        Boolean systemVm = vmSpec.getType().isUsedBySystem();
         // Thus, vmInternalCSName always holds i-x-y, the cloudstack generated internal VM name.
         VmwareContext context = getServiceContext();
         DatacenterMO dcMo = null;
@@ -1379,6 +1473,9 @@ public class VmwareResource implements StoragePoolResource, ServerResource, Vmwa
 
             VirtualMachineDiskInfoBuilder diskInfoBuilder = null;
             VirtualMachineMO vmMo = hyperHost.findVmOnHyperHost(vmInternalCSName);
+            DiskControllerType systemVmScsiControllerType = DiskControllerType.lsilogic;
+            int firstScsiControllerBusNum = 0;
+            int numScsiControllerForSystemVm = 1;
             boolean hasSnapshot = false;
             if (vmMo != null) {
                 s_logger.info("VM " + vmInternalCSName + " already exists, tear down devices for reconfiguration");
@@ -1392,7 +1489,11 @@ public class VmwareResource implements StoragePoolResource, ServerResource, Vmwa
                     vmMo.tearDownDevices(new Class<?>[] {VirtualDisk.class, VirtualEthernetCard.class});
                 else
                     vmMo.tearDownDevices(new Class<?>[] {VirtualEthernetCard.class});
-                vmMo.ensureScsiDeviceController();
+                if (systemVm) {
+                    ensureScsiDiskControllers(vmMo, systemVmScsiControllerType.toString(), numScsiControllerForSystemVm, firstScsiControllerBusNum);
+                } else {
+                    ensureDiskControllers(vmMo, controllerInfo);
+                }
             } else {
                 ManagedObjectReference morDc = hyperHost.getHyperHostDatacenter();
                 assert (morDc != null);
@@ -1414,7 +1515,13 @@ public class VmwareResource implements StoragePoolResource, ServerResource, Vmwa
                         vmMo.tearDownDevices(new Class<?>[] {VirtualDisk.class, VirtualEthernetCard.class});
                     else
                         vmMo.tearDownDevices(new Class<?>[] {VirtualEthernetCard.class});
-                    vmMo.ensureScsiDeviceController();
+
+                    if (systemVm) {
+                        // System volumes doesn't require more than 1 SCSI controller as there is no requirement for data volumes.
+                        ensureScsiDiskControllers(vmMo, systemVmScsiControllerType.toString(), numScsiControllerForSystemVm, firstScsiControllerBusNum);
+                    } else {
+                        ensureDiskControllers(vmMo, controllerInfo);
+                    }
                 } else {
                     // If a VM with the same name is found in a different cluster in the DC, unregister the old VM and configure a new VM (cold-migration).
                     VirtualMachineMO existingVmInDc = dcMo.findVm(vmInternalCSName);
@@ -1458,7 +1565,7 @@ public class VmwareResource implements StoragePoolResource, ServerResource, Vmwa
                         tearDownVm(vmMo);
                     }else if (!hyperHost.createBlankVm(vmNameOnVcenter, vmInternalCSName, vmSpec.getCpus(), vmSpec.getMaxSpeed().intValue(),
                             getReservedCpuMHZ(vmSpec), vmSpec.getLimitCpuUse(), (int)(vmSpec.getMaxRam() / (1024 * 1024)), getReservedMemoryMb(vmSpec),
-                            translateGuestOsIdentifier(vmSpec.getArch(), vmSpec.getOs(), vmSpec.getPlatformEmulator()).value(), rootDiskDataStoreDetails.first(), false)) {
+                            translateGuestOsIdentifier(vmSpec.getArch(), vmSpec.getOs(), vmSpec.getPlatformEmulator()).value(), rootDiskDataStoreDetails.first(), false, controllerInfo, systemVm)) {
                         throw new Exception("Failed to create VM. vmName: " + vmInternalCSName);
                     }
                 }
@@ -1520,7 +1627,7 @@ public class VmwareResource implements StoragePoolResource, ServerResource, Vmwa
             int scsiUnitNumber = 0;
             int nicUnitNumber = 0;
             int ideControllerKey = vmMo.getIDEDeviceControllerKey();
-            int scsiControllerKey = vmMo.getScsiDeviceControllerKey();
+            int scsiControllerKey = vmMo.getGenericScsiDeviceControllerKeyNoException();
             int controllerKey;
 
             //
@@ -1530,12 +1637,14 @@ public class VmwareResource implements StoragePoolResource, ServerResource, Vmwa
             // prepare systemvm patch ISO
             if (vmSpec.getType() != VirtualMachine.Type.User) {
                 // attach ISO (for patching of system VM)
-                String secStoreUrl = mgr.getSecondaryStorageStoreUrl(Long.parseLong(_dcId));
+                Pair<String, Long> secStoreUrlAndId = mgr.getSecondaryStorageStoreUrlAndId(Long.parseLong(_dcId));
+                String secStoreUrl = secStoreUrlAndId.first();
+                Long secStoreId = secStoreUrlAndId.second();
                 if (secStoreUrl == null) {
                     String msg = "secondary storage for dc " + _dcId + " is not ready yet?";
                     throw new Exception(msg);
                 }
-                mgr.prepareSecondaryStorageStore(secStoreUrl);
+                mgr.prepareSecondaryStorageStore(secStoreUrl, secStoreId);
 
                 ManagedObjectReference morSecDs = prepareSecondaryDatastoreOnHost(secStoreUrl);
                 if (morSecDs == null) {
@@ -1619,7 +1728,31 @@ public class VmwareResource implements StoragePoolResource, ServerResource, Vmwa
 
                 VirtualMachineDiskInfo matchingExistingDisk = getMatchingExistingDisk(diskInfoBuilder, vol, hyperHost, context);
                 controllerKey = getDiskController(matchingExistingDisk, vol, vmSpec, ideControllerKey, scsiControllerKey);
+                String diskController = getDiskController(vmMo, matchingExistingDisk, vol, new Pair<String, String>(rootDiskController, dataDiskController));
 
+                if (DiskControllerType.getType(diskController) == DiskControllerType.osdefault) {
+                    diskController = vmMo.getRecommendedDiskController(null);
+                }
+                if (DiskControllerType.getType(diskController) == DiskControllerType.ide) {
+                    controllerKey = vmMo.getIDEControllerKey(ideUnitNumber);
+                    if (vol.getType() == Volume.Type.DATADISK) {
+                        // Could be result of flip due to user configured setting or "osdefault" for data disks
+                        // Ensure maximum of 2 data volumes over IDE controller, 3 includeing root volume
+                        if (vmMo.getNumberOfVirtualDisks() > 3) {
+                            throw new CloudRuntimeException("Found more than 3 virtual disks attached to this VM [" + vmMo.getVmName() + "]. Unable to implement the disks over "
+                                    + diskController + " controller, as maximum number of devices supported over IDE controller is 4 includeing CDROM device.");
+                        }
+                    }
+                } else {
+                    controllerKey = vmMo.getScsiDiskControllerKeyNoException(diskController);
+                    if (controllerKey == -1) {
+                        // This may happen for ROOT legacy VMs which doesn't have recommended disk controller when global configuration parameter 'vmware.root.disk.controller' is set to "osdefault"
+                        // Retrieve existing controller and use.
+                        Ternary<Integer, Integer, DiskControllerType> vmScsiControllerInfo = vmMo.getScsiControllerInfo();
+                        DiskControllerType existingControllerType = vmScsiControllerInfo.third();
+                        controllerKey = vmMo.getScsiDiskControllerKeyNoException(existingControllerType.toString());
+                    }
+                }
                 if (!hasSnapshot) {
                     deviceConfigSpecArray[i] = new VirtualDeviceConfigSpec();
 
@@ -1648,7 +1781,7 @@ public class VmwareResource implements StoragePoolResource, ServerResource, Vmwa
                     VirtualDevice device = VmwareHelper.prepareDiskDevice(vmMo, null, controllerKey,
                             diskChain,
                             volumeDsDetails.first(),
-                            (controllerKey == ideControllerKey) ? ideUnitNumber++ : scsiUnitNumber++, i + 1);
+                            (controllerKey == vmMo.getIDEControllerKey(ideUnitNumber)) ? ((ideUnitNumber++) % VmwareHelper.MAX_IDE_CONTROLLER_COUNT) : scsiUnitNumber++, i + 1);
 
                     deviceConfigSpecArray[i].setDevice(device);
                     deviceConfigSpecArray[i].setOperation(VirtualDeviceConfigSpecOperation.ADD);
@@ -1660,7 +1793,7 @@ public class VmwareResource implements StoragePoolResource, ServerResource, Vmwa
                 } else {
                     if (controllerKey == scsiControllerKey && VmwareHelper.isReservedScsiDeviceNumber(scsiUnitNumber))
                         scsiUnitNumber++;
-                    if (controllerKey == ideControllerKey)
+                    if (controllerKey == vmMo.getIDEControllerKey(ideUnitNumber))
                         ideUnitNumber++;
                     else
                         scsiUnitNumber++;
@@ -1677,26 +1810,39 @@ public class VmwareResource implements StoragePoolResource, ServerResource, Vmwa
             if (s_logger.isDebugEnabled())
                 s_logger.debug("VM " + vmInternalCSName + " will be started with NIC device type: " + nicDeviceType);
 
+            NiciraNvpApiVersion.logNiciraApiVersion();
+
+            Map<String, String> nicUuidToDvSwitchUuid = new HashMap<String, String>();
             for (NicTO nicTo : sortNicsByDeviceId(nics)) {
                 s_logger.info("Prepare NIC device based on NicTO: " + _gson.toJson(nicTo));
 
                 boolean configureVServiceInNexus = (nicTo.getType() == TrafficType.Guest) && (vmSpec.getDetails().containsKey("ConfigureVServiceInNexus"));
                 VirtualMachine.Type vmType = cmd.getVirtualMachine().getType();
                 Pair<ManagedObjectReference, String> networkInfo = prepareNetworkFromNicInfo(vmMo.getRunningHost(), nicTo, configureVServiceInNexus, vmType);
-                if (VmwareHelper.isDvPortGroup(networkInfo.first())) {
-                    String dvSwitchUuid;
-                    ManagedObjectReference dcMor = hyperHost.getHyperHostDatacenter();
-                    DatacenterMO dataCenterMo = new DatacenterMO(context, dcMor);
-                    ManagedObjectReference dvsMor = dataCenterMo.getDvSwitchMor(networkInfo.first());
-                    dvSwitchUuid = dataCenterMo.getDvSwitchUuid(dvsMor);
-                    s_logger.info("Preparing NIC device on dvSwitch : " + dvSwitchUuid);
-                    nic =
-                            VmwareHelper.prepareDvNicDevice(vmMo, networkInfo.first(), nicDeviceType, networkInfo.second(), dvSwitchUuid, nicTo.getMac(), nicUnitNumber++,
-                                    i + 1, true, true);
-                } else {
-                    s_logger.info("Preparing NIC device on network " + networkInfo.second());
-                    nic =
-                            VmwareHelper.prepareNicDevice(vmMo, networkInfo.first(), nicDeviceType, networkInfo.second(), nicTo.getMac(), nicUnitNumber++, i + 1, true, true);
+                if ((nicTo.getBroadcastType() != BroadcastDomainType.Lswitch) ||
+                        (nicTo.getBroadcastType() == BroadcastDomainType.Lswitch && NiciraNvpApiVersion.isApiVersionLowerThan("4.2"))){
+                    if (VmwareHelper.isDvPortGroup(networkInfo.first())) {
+                        String dvSwitchUuid;
+                        ManagedObjectReference dcMor = hyperHost.getHyperHostDatacenter();
+                        DatacenterMO dataCenterMo = new DatacenterMO(context, dcMor);
+                        ManagedObjectReference dvsMor = dataCenterMo.getDvSwitchMor(networkInfo.first());
+                        dvSwitchUuid = dataCenterMo.getDvSwitchUuid(dvsMor);
+                        s_logger.info("Preparing NIC device on dvSwitch : " + dvSwitchUuid);
+                        nic =
+                                VmwareHelper.prepareDvNicDevice(vmMo, networkInfo.first(), nicDeviceType, networkInfo.second(), dvSwitchUuid, nicTo.getMac(), nicUnitNumber++,
+                                        i + 1, true, true);
+                        if (nicTo.getUuid() != null) {
+                            nicUuidToDvSwitchUuid.put(nicTo.getUuid(), dvSwitchUuid);
+                        }
+                    } else {
+                        s_logger.info("Preparing NIC device on network " + networkInfo.second());
+                        nic =
+                                VmwareHelper.prepareNicDevice(vmMo, networkInfo.first(), nicDeviceType, networkInfo.second(), nicTo.getMac(), nicUnitNumber++, i + 1, true, true);
+                    }
+                }
+                else{
+                    //if NSX API VERSION >= 4.2, connect to br-int (nsx.network), do not create portgroup else previous behaviour
+                    nic = VmwareHelper.prepareNicOpaque(vmMo, nicDeviceType, networkInfo.second(), nicTo.getMac(), nicUnitNumber++, i + 1, true, true);
                 }
 
                 deviceConfigSpecArray[i] = new VirtualDeviceConfigSpec();
@@ -1724,7 +1870,7 @@ public class VmwareResource implements StoragePoolResource, ServerResource, Vmwa
             // pass boot arguments through machine.id & perform customized options to VMX
             ArrayList<OptionValue> extraOptions = new ArrayList<OptionValue>();
             configBasicExtraOption(extraOptions, vmSpec);
-            configNvpExtraOption(extraOptions, vmSpec);
+            configNvpExtraOption(extraOptions, vmSpec, nicUuidToDvSwitchUuid);
             configCustomExtraOption(extraOptions, vmSpec);
 
             // config VNC
@@ -1751,6 +1897,8 @@ public class VmwareResource implements StoragePoolResource, ServerResource, Vmwa
             Map<String, String> iqnToPath = new HashMap<String, String>();
 
             postDiskConfigBeforeStart(vmMo, vmSpec, sortedDisks, ideControllerKey, scsiControllerKey, iqnToPath, hyperHost, context);
+
+            postVideoCardMemoryConfigBeforeStart(vmMo, vmSpec);
 
             //
             // Power-on VM
@@ -1798,6 +1946,79 @@ public class VmwareResource implements StoragePoolResource, ServerResource, Vmwa
             return startAnswer;
         } finally {
         }
+    }
+
+    /**
+     * Sets video card memory to the one provided in detail svga.vramSize (if provided).
+     * 64MB was always set before.
+     * Size must be in KB.
+     * @param vmMo virtual machine mo
+     * @param vmSpec virtual machine specs
+     */
+    protected void postVideoCardMemoryConfigBeforeStart(VirtualMachineMO vmMo, VirtualMachineTO vmSpec) {
+        String paramVRamSize = "svga.vramSize";
+        if (vmSpec.getDetails().containsKey(paramVRamSize)){
+            String value = vmSpec.getDetails().get(paramVRamSize);
+            try {
+                long svgaVmramSize = Long.parseLong(value);
+                setNewVRamSizeVmVideoCard(vmMo, svgaVmramSize);
+            }
+            catch (NumberFormatException e){
+                s_logger.error("Unexpected value, cannot parse " + value + " to long due to: " + e.getMessage());
+            }
+            catch (Exception e){
+                s_logger.error("Error while reconfiguring vm due to: " + e.getMessage());
+            }
+        }
+    }
+
+    /**
+     * Search for vm video card iterating through vm device list
+     * @param vmMo virtual machine mo
+     * @param svgaVmramSize new svga vram size (in KB)
+     */
+    private void setNewVRamSizeVmVideoCard(VirtualMachineMO vmMo, long svgaVmramSize) throws Exception {
+        for (VirtualDevice device : vmMo.getAllDeviceList()){
+            if (device instanceof VirtualMachineVideoCard){
+                VirtualMachineVideoCard videoCard = (VirtualMachineVideoCard) device;
+                modifyVmVideoCardVRamSize(videoCard, vmMo, svgaVmramSize);
+            }
+        }
+    }
+
+    /**
+     * Modifies vm vram size if it was set to a different size to the one provided in svga.vramSize (user_vm_details or template_vm_details)
+     * @param videoCard vm's video card device
+     * @param vmMo virtual machine mo
+     * @param svgaVmramSize new svga vram size (in KB)
+     */
+    private void modifyVmVideoCardVRamSize(VirtualMachineVideoCard videoCard, VirtualMachineMO vmMo, long svgaVmramSize) throws Exception {
+        if (videoCard.getVideoRamSizeInKB().longValue() != svgaVmramSize){
+            s_logger.info("Video card memory was set " + videoCard.getVideoRamSizeInKB().longValue() + "kb instead of " + svgaVmramSize + "kb");
+            VirtualMachineConfigSpec newSizeSpecs = configSpecVideoCardNewVRamSize(videoCard, svgaVmramSize);
+            boolean res = vmMo.configureVm(newSizeSpecs);
+            if (res) {
+                s_logger.info("Video card memory successfully updated to " + svgaVmramSize + "kb");
+            }
+        }
+    }
+
+    /**
+     * Returns a VirtualMachineConfigSpec to edit its svga vram size
+     * @param videoCard video card device to edit providing the svga vram size
+     * @param svgaVmramSize new svga vram size (in KB)
+     */
+    private VirtualMachineConfigSpec configSpecVideoCardNewVRamSize(VirtualMachineVideoCard videoCard, long svgaVmramSize){
+        videoCard.setVideoRamSizeInKB(svgaVmramSize);
+        videoCard.setUseAutoDetect(false);
+
+        VirtualDeviceConfigSpec arrayVideoCardConfigSpecs = new VirtualDeviceConfigSpec();
+        arrayVideoCardConfigSpecs.setDevice(videoCard);
+        arrayVideoCardConfigSpecs.setOperation(VirtualDeviceConfigSpecOperation.EDIT);
+
+        VirtualMachineConfigSpec changeVideoCardSpecs = new VirtualMachineConfigSpec();
+        changeVideoCardSpecs.getDeviceChange().add(arrayVideoCardConfigSpecs);
+        return changeVideoCardSpecs;
     }
 
     private void tearDownVm(VirtualMachineMO vmMo) throws Exception{
@@ -1934,7 +2155,7 @@ public class VmwareResource implements StoragePoolResource, ServerResource, Vmwa
         extraOptions.add(newVal);
     }
 
-    private static void configNvpExtraOption(List<OptionValue> extraOptions, VirtualMachineTO vmSpec) {
+    private static void configNvpExtraOption(List<OptionValue> extraOptions, VirtualMachineTO vmSpec, Map<String, String> nicUuidToDvSwitchUuid) {
         /**
          * Extra Config : nvp.vm-uuid = uuid
          *  - Required for Nicira NVP integration
@@ -1955,20 +2176,33 @@ public class VmwareResource implements StoragePoolResource, ServerResource, Vmwa
                 newVal.setKey("nvp.iface-id." + nicNum);
                 newVal.setValue(nicTo.getUuid());
                 extraOptions.add(newVal);
-                setNuageVspVrIpInExtraConfig(extraOptions, nicTo);
+                setNuageVspVrIpInExtraConfig(extraOptions, nicTo, nicUuidToDvSwitchUuid.get(nicTo.getUuid()));
             }
             nicNum++;
         }
     }
 
-    private static void setNuageVspVrIpInExtraConfig(List<OptionValue> extraOptions, NicTO nicTo) {
-        URI broadcastUri = nicTo.getBroadcastUri();
-        if (broadcastUri != null && broadcastUri.getScheme().equalsIgnoreCase(Networks.BroadcastDomainType.Vsp.scheme())) {
-            String path = broadcastUri.getPath();
-            OptionValue newVal = new OptionValue();
+    private static void setNuageVspVrIpInExtraConfig(List<OptionValue> extraOptions, NicTO nicTo, String dvSwitchUuid) {
+        if (nicTo.getBroadcastType() != BroadcastDomainType.Vsp) {
+            return;
+        }
+
+        OptionValue newVal;
+        if (nicTo.getType().equals(TrafficType.Guest) && dvSwitchUuid != null && nicTo.getGateway() != null && nicTo.getNetmask() != null)  {
+            String vrIp = nicTo.getBroadcastUri().getPath().substring(1);
+            newVal = new OptionValue();
             newVal.setKey("vsp.vr-ip." + nicTo.getMac());
-            newVal.setValue(path.substring(1));
+            newVal.setValue(vrIp);
             extraOptions.add(newVal);
+            newVal = new OptionValue();
+            newVal.setKey("vsp.dvswitch." + nicTo.getMac());
+            newVal.setValue(dvSwitchUuid);
+            extraOptions.add(newVal);
+
+            if (s_logger.isDebugEnabled()) {
+                s_logger.debug("NIC with MAC " + nicTo.getMac() + " and BroadcastDomainType " + nicTo.getBroadcastType() + " in network(" + nicTo.getGateway() + "/"
+                        + nicTo.getNetmask() + ") is " + nicTo.getType() + " traffic type. So, vsp-vr-ip is set in the extraconfig");
+            }
         }
     }
 
@@ -2076,6 +2310,9 @@ public class VmwareResource implements StoragePoolResource, ServerResource, Vmwa
                 } else if (backing instanceof VirtualEthernetCardNetworkBackingInfo) {
                     // This NIC is connected to a Virtual Switch
                     // Nothing to do
+                } else if (backing instanceof VirtualEthernetCardOpaqueNetworkBackingInfo) {
+                    //if NSX API VERSION >= 4.2, connect to br-int (nsx.network), do not create portgroup else previous behaviour
+                    //OK, connected to OpaqueNetwork
                 } else {
                     s_logger.error("nic device backing is of type " + backing.getClass().getName());
                     throw new Exception("Incompatible backing for a VirtualDevice for nic " + nicIndex); //FIXME Generic exceptions are bad
@@ -2187,6 +2424,36 @@ public class VmwareResource implements StoragePoolResource, ServerResource, Vmwa
         return controllerKey;
     }
 
+    private String getDiskController(VirtualMachineMO vmMo, VirtualMachineDiskInfo matchingExistingDisk, DiskTO vol, Pair<String, String> controllerInfo) throws Exception {
+        int controllerKey;
+        DiskControllerType controllerType = DiskControllerType.none;
+        if (matchingExistingDisk != null) {
+            String currentBusName = matchingExistingDisk.getDiskDeviceBusName();
+            if (currentBusName != null) {
+                s_logger.info("Chose disk controller based on existing information: " + currentBusName);
+                if (currentBusName.startsWith("ide")) {
+                    controllerType = DiskControllerType.ide;
+                } else if (currentBusName.startsWith("scsi")) {
+                    controllerType = DiskControllerType.scsi;
+                }
+            }
+            if (controllerType == DiskControllerType.scsi || controllerType == DiskControllerType.none) {
+                Ternary<Integer, Integer, DiskControllerType> vmScsiControllerInfo = vmMo.getScsiControllerInfo();
+                controllerType = vmScsiControllerInfo.third();
+            }
+            return controllerType.toString();
+        }
+
+        if (vol.getType() == Volume.Type.ROOT) {
+            s_logger.info("Chose disk controller for vol " + vol.getType() + " -> " + controllerInfo.first()
+                    + ", based on root disk controller settings at global configuration setting.");
+            return controllerInfo.first();
+        } else {
+            s_logger.info("Chose disk controller for vol " + vol.getType() + " -> " + controllerInfo.second()
+                    + ", based on default data disk controller setting i.e. Operating system recommended."); // Need to bring in global configuration setting & template level setting.
+            return controllerInfo.second();
+        }
+    }
     private void postDiskConfigBeforeStart(VirtualMachineMO vmMo, VirtualMachineTO vmSpec, DiskTO[] sortedDisks, int ideControllerKey,
             int scsiControllerKey, Map<String, String> iqnToPath, VmwareHypervisorHost hyperHost, VmwareContext context) throws Exception {
         VirtualMachineDiskInfoBuilder diskInfoBuilder = vmMo.getDiskInfoBuilder();
@@ -2945,12 +3212,14 @@ public class VmwareResource implements StoragePoolResource, ServerResource, Vmwa
                 prepareNetworkFromNicInfo(new HostMO(getServiceContext(), _morHyperHost), nic, false, cmd.getVirtualMachine().getType());
             }
 
-            String secStoreUrl = mgr.getSecondaryStorageStoreUrl(Long.parseLong(_dcId));
+            Pair<String, Long> secStoreUrlAndId = mgr.getSecondaryStorageStoreUrlAndId(Long.parseLong(_dcId));
+            String secStoreUrl = secStoreUrlAndId.first();
+            Long secStoreId = secStoreUrlAndId.second();
             if (secStoreUrl == null) {
                 String msg = "secondary storage for dc " + _dcId + " is not ready yet?";
                 throw new Exception(msg);
             }
-            mgr.prepareSecondaryStorageStore(secStoreUrl);
+            mgr.prepareSecondaryStorageStore(secStoreUrl, secStoreId);
 
             ManagedObjectReference morSecDs = prepareSecondaryDatastoreOnHost(secStoreUrl);
             if (morSecDs == null) {
@@ -3127,8 +3396,13 @@ public class VmwareResource implements StoragePoolResource, ServerResource, Vmwa
                     relocateSpec.setDatastore(morTgtDatastore);
                 }
                 diskLocator = new VirtualMachineRelocateSpecDiskLocator();
-                diskLocator.setDatastore(morTgtDatastore);
-                int diskId = getVirtualDiskInfo(vmMo, volume.getPath() + ".vmdk");
+                diskLocator.setDatastore(morDsAtSource);
+                Pair<VirtualDisk, String> diskInfo = getVirtualDiskInfo(vmMo, volume.getPath() + ".vmdk");
+                String vmdkAbsFile = getAbsoluteVmdkFile(diskInfo.first());
+                if (vmdkAbsFile != null && !vmdkAbsFile.isEmpty()) {
+                    vmMo.updateAdapterTypeIfRequired(vmdkAbsFile);
+                }
+                int diskId = diskInfo.first().getKey();
                 diskLocator.setDiskId(diskId);
 
                 diskLocators.add(diskLocator);
@@ -3156,12 +3430,14 @@ public class VmwareResource implements StoragePoolResource, ServerResource, Vmwa
             }
 
             // Ensure secondary storage mounted on target host
-            String secStoreUrl = mgr.getSecondaryStorageStoreUrl(Long.parseLong(_dcId));
+            Pair<String, Long> secStoreUrlAndId = mgr.getSecondaryStorageStoreUrlAndId(Long.parseLong(_dcId));
+            String secStoreUrl = secStoreUrlAndId.first();
+            Long secStoreId = secStoreUrlAndId.second();
             if (secStoreUrl == null) {
                 String msg = "secondary storage for dc " + _dcId + " is not ready yet?";
                 throw new Exception(msg);
             }
-            mgr.prepareSecondaryStorageStore(secStoreUrl);
+            mgr.prepareSecondaryStorageStore(secStoreUrl, secStoreId);
             ManagedObjectReference morSecDs = prepareSecondaryDatastoreOnSpecificHost(secStoreUrl, tgtHyperHost);
             if (morSecDs == null) {
                 String msg = "Failed to prepare secondary storage on host, secondary store url: " + secStoreUrl;
@@ -3295,7 +3571,13 @@ public class VmwareResource implements StoragePoolResource, ServerResource, Vmwa
 
             DatastoreMO targetDsMo = new DatastoreMO(srcHyperHost.getContext(), morDs);
             String fullVolumePath = VmwareStorageLayoutHelper.getVmwareDatastorePathFromVmdkFileName(targetDsMo, vmName, volumePath + ".vmdk");
-            int diskId = getVirtualDiskInfo(vmMo, volumePath + ".vmdk");
+            Pair<VirtualDisk, String> diskInfo = getVirtualDiskInfo(vmMo, volumePath + ".vmdk");
+            String vmdkAbsFile = getAbsoluteVmdkFile(diskInfo.first());
+            if (vmdkAbsFile != null && !vmdkAbsFile.isEmpty()) {
+                vmMo.updateAdapterTypeIfRequired(vmdkAbsFile);
+            }
+            int diskId = diskInfo.first().getKey();
+
             diskLocator = new VirtualMachineRelocateSpecDiskLocator();
             diskLocator.setDatastore(morDs);
             diskLocator.setDiskId(diskId);
@@ -3354,12 +3636,12 @@ public class VmwareResource implements StoragePoolResource, ServerResource, Vmwa
         }
     }
 
-    private int getVirtualDiskInfo(VirtualMachineMO vmMo, String srcDiskName) throws Exception {
+    private Pair<VirtualDisk, String> getVirtualDiskInfo(VirtualMachineMO vmMo, String srcDiskName) throws Exception {
         Pair<VirtualDisk, String> deviceInfo = vmMo.getDiskDevice(srcDiskName);
         if (deviceInfo == null) {
             throw new Exception("No such disk device: " + srcDiskName);
         }
-        return deviceInfo.first().getKey();
+        return deviceInfo;
     }
 
     private VmwareHypervisorHost getTargetHyperHost(DatacenterMO dcMo, String destIp) throws Exception {
@@ -4962,8 +5244,10 @@ public class VmwareResource implements StoragePoolResource, ServerResource, Vmwa
             value = (String)params.get("vmware.root.disk.controller");
             if (value != null && value.equalsIgnoreCase("scsi"))
                 _rootDiskController = DiskControllerType.scsi;
-            else
+            else if (value != null && value.equalsIgnoreCase("ide"))
                 _rootDiskController = DiskControllerType.ide;
+            else
+                _rootDiskController = DiskControllerType.osdefault;
 
             Integer intObj = (Integer)params.get("ports.per.dvportgroup");
             if (intObj != null)
@@ -4989,8 +5273,8 @@ public class VmwareResource implements StoragePoolResource, ServerResource, Vmwa
 
             value = (String)params.get("scripts.timeout");
             int timeout = NumbersUtil.parseInt(value, 1440) * 1000;
-            _storageProcessor = new VmwareStorageProcessor((VmwareHostService)this, _fullCloneFlag, (VmwareStorageMount)mgr, timeout, this, _shutdownWaitMs, null);
-            storageHandler = new VmwareStorageSubsystemCommandHandler(_storageProcessor);
+            _storageProcessor = new VmwareStorageProcessor((VmwareHostService)this, _fullCloneFlag, (VmwareStorageMount)mgr, timeout, this, _shutdownWaitMs, null, (String)params.get("nfsVersion"));
+            storageHandler = new VmwareStorageSubsystemCommandHandler(_storageProcessor, (String)params.get("nfsVersion"));
 
             _vrResource = new VirtualRoutingResource(this);
             if (!_vrResource.configure(name, params)) {
@@ -5186,5 +5470,15 @@ public class VmwareResource implements StoragePoolResource, ServerResource, Vmwa
             s_logger.error(msg, e);
             return new Answer(cmd, false, msg);
         }
+    }
+
+    private String getAbsoluteVmdkFile(VirtualDisk disk) {
+        String vmdkAbsFile = null;
+        VirtualDeviceBackingInfo backingInfo = disk.getBacking();
+        if (backingInfo instanceof VirtualDiskFlatVer2BackingInfo) {
+            VirtualDiskFlatVer2BackingInfo diskBackingInfo = (VirtualDiskFlatVer2BackingInfo)backingInfo;
+            vmdkAbsFile = diskBackingInfo.getFileName();
+        }
+        return vmdkAbsFile;
     }
 }

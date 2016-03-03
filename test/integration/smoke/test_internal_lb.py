@@ -20,7 +20,8 @@
 from marvin.codes import PASS, FAILED
 from marvin.cloudstackTestCase import cloudstackTestCase
 from marvin.lib.utils import (cleanup_resources,
-                              get_process_status)
+                              get_process_status,
+                              get_host_credentials)
 from marvin.lib.base import (Domain,
                              Account,
                              Configurations,
@@ -74,7 +75,6 @@ class Services:
             },
             "host1": None,
             "host2": None,
-            "default_hypervisor": "kvm",
             "compute_offering": {
                 "name": "Tiny Instance",
                 "displaytext": "Tiny Instance",
@@ -128,7 +128,7 @@ class Services:
                 },
                 "egress_policy": "true",
             },
-            "vpc_offering": {
+            "redundant_vpc_offering": {
                 "name": 'Redundant VPC off',
                 "displaytext": 'Redundant VPC off',
                 "supportedservices": 'Dhcp,Dns,SourceNat,PortForwarding,Vpn,Lb,UserData,StaticNat',
@@ -137,8 +137,8 @@ class Services:
                     "Dhcp": 'VpcVirtualRouter',
                     "Dns": 'VpcVirtualRouter',
                     "SourceNat": 'VpcVirtualRouter',
+                    "Lb" : ["InternalLbVm", "VpcVirtualRouter"],
                     "PortForwarding": 'VpcVirtualRouter',
-                    "Lb": 'VpcVirtualRouter',
                     "UserData": 'VpcVirtualRouter',
                     "StaticNat": 'VpcVirtualRouter',
                     "NetworkACL": 'VpcVirtualRouter'
@@ -146,7 +146,23 @@ class Services:
                 "serviceCapabilityList": {
                     "SourceNat": {
                         "RedundantRouter": 'true'
-                    }
+                    },
+                },
+            },
+            "vpc_offering": {
+                "name": "VPC off",
+                "displaytext": "VPC off",
+                "supportedservices": "Dhcp,Dns,SourceNat,PortForwarding,Vpn,Lb,UserData,StaticNat,NetworkACL",
+                "serviceProviderList": {
+                    "Vpn": 'VpcVirtualRouter',
+                    "Dhcp": 'VpcVirtualRouter',
+                    "Dns": 'VpcVirtualRouter',
+                    "SourceNat": 'VpcVirtualRouter',
+                    "Lb" : ["InternalLbVm", "VpcVirtualRouter"],
+                    "PortForwarding": 'VpcVirtualRouter',
+                    "UserData": 'VpcVirtualRouter',
+                    "StaticNat": 'VpcVirtualRouter',
+                    "NetworkACL": 'VpcVirtualRouter'
                 },
             },
             "vpc": {
@@ -214,14 +230,31 @@ class Services:
                     "url": "http://dl.openvm.eu/cloudstack/macchinina/x86_64/macchinina-kvm.qcow2.bz2",
                     "requireshvm": "True"
                 },
-
-                "xen": {
+                "xenserver": {
                     "name": "tiny-xen",
                     "displaytext": "macchinina xen",
                     "format": "vhd",
-                    "hypervisor": "xen",
-                    "ostype": "Other (64-bit)",
+                    "hypervisor": "xenserver",
+                    "ostype": "Other PV (64-bit)",
                     "url": "http://dl.openvm.eu/cloudstack/macchinina/x86_64/macchinina-xen.vhd.bz2",
+                    "requireshvm": "True",
+                },
+                "hyperv": {
+                    "name": "tiny-hyperv",
+                    "displaytext": "macchinina xen",
+                    "format": "vhd",
+                    "hypervisor": "hyperv",
+                    "ostype": "Other PV (64-bit)",
+                    "url": "http://dl.openvm.eu/cloudstack/macchinina/x86_64/macchinina-hyperv.vhd.zip",
+                    "requireshvm": "True",
+                },
+                "vmware": {
+                    "name": "tiny-vmware",
+                    "displaytext": "macchinina vmware",
+                    "format": "ova",
+                    "hypervisor": "vmware",
+                    "ostype": "Other PV (64-bit)",
+                    "url": "http://dl.openvm.eu/cloudstack/macchinina/x86_64/macchinina-vmware.vmdk.bz2",
                     "requireshvm": "True",
                 }
             }
@@ -256,10 +289,10 @@ class TestInternalLb(cloudstackTestCase):
         cls.account = Account.create(
             cls.apiclient, services=cls.services["account"])
 
-        cls.hypervisor = cls.services["default_hypervisor"]
+        cls.hypervisor = testClient.getHypervisorInfo()
 
-        cls.logger.debug("Downloading Template: %s from: %s" %(cls.services["template"][cls.hypervisor]["name"], cls.services["template"][cls.hypervisor]["url"]))
-        cls.template = Template.register(cls.apiclient, cls.services["template"][cls.hypervisor], cls.zone.id, hypervisor=cls.hypervisor, account=cls.account.name, domainid=cls.domain.id)
+        cls.logger.debug("Downloading Template: %s from: %s" %(cls.services["template"][cls.hypervisor.lower()], cls.services["template"][cls.hypervisor.lower()]["url"]))
+        cls.template = Template.register(cls.apiclient, cls.services["template"][cls.hypervisor.lower()], cls.zone.id, hypervisor=cls.hypervisor.lower(), account=cls.account.name, domainid=cls.domain.id)
         cls.template.download(cls.apiclient)
 
         if cls.template == FAILED:
@@ -269,8 +302,11 @@ class TestInternalLb(cloudstackTestCase):
                    %s" % (cls.account.name,
                           cls.account.id))
 
-        cls.cleanup = [cls.template, cls.account, cls.compute_offering]
+        cls._cleanup = [cls.template, cls.account, cls.compute_offering]
         return
+
+    def setUp(self):
+        self.cleanup = []
 
     def get_networkoffering_state(self, offering):
         result = list_network_offerings(self.apiclient, id=offering.id)
@@ -297,39 +333,34 @@ class TestInternalLb(cloudstackTestCase):
                     offering), "Enabled", "Failed to enable network offering")
 
                 self.logger.debug("Enabled network offering: %s" % offering.id)
+
+                self.cleanup.insert(0, offering)
                 return offering
 
         except Exception as e:
-            self.fail("Failed to create and enable network offering: %s because of %s" % (
-                offering_name, e))
+            self.fail("Failed to create and enable network offering due to %s" % e)
 
-    def create_vpc(self, name, cidr):
-        print name, cidr
+    def create_vpc(self, vpc_offering):
+        self.logger.debug("Creating VPC using offering ==> ID %s / Name %s" % (vpc_offering.id, vpc_offering.name))
         try:
-            vpcOffering = VpcOffering.list(self.apiclient, isdefault=True)
-            self.assert_(vpcOffering is not None and len(
-                vpcOffering) > 0, "No VPC offerings found")
-
-            self.services["vpc"] = {}
-            self.services["vpc"]["name"] = name
-            self.services["vpc"]["displaytext"] = name
-            self.services["vpc"]["cidr"] = cidr
-
             vpc = VPC.create(
                 apiclient=self.apiclient,
                 services=self.services["vpc"],
                 networkDomain="vpc.internallb",
-                vpcofferingid=vpcOffering[0].id,
+                vpcofferingid=vpc_offering.id,
                 zoneid=self.zone.id,
                 account=self.account.name,
                 domainid=self.domain.id
             )
+
             self.assertIsNotNone(vpc, "VPC creation failed")
             self.logger.debug("Created VPC %s" % vpc.id)
+
+            self.cleanup.insert(0, vpc)
             return vpc
 
         except Exception as e:
-            self.fail("Failed to create VPC: %s due to %s" % (name, e))
+            self.fail("Failed to create VPC due to %s" % e)
 
     def create_network_tier(self, name, vpcid, gateway, network_offering):
         self.services["network"]["name"] = name
@@ -350,10 +381,12 @@ class TestInternalLb(cloudstackTestCase):
                 netmask=self.services["network"]["netmask"],
                 aclid=default_acl.id
             )
+
             self.assertIsNotNone(network, "Network failed to create")
             self.logger.debug(
                 "Created network %s in VPC %s" % (network.id, vpcid))
 
+            self.cleanup.insert(0, network)
             return network
 
         except Exception as e:
@@ -376,6 +409,7 @@ class TestInternalLb(cloudstackTestCase):
             self.assert_(vm.state == 'Running', "VM is not running")
             self.logger.debug("Deployed VM id: %s in VPC %s" % (vm.id, vpc.id))
 
+            self.cleanup.insert(0, vm)
             return vm
 
         except Exception as e:
@@ -450,6 +484,7 @@ class TestInternalLb(cloudstackTestCase):
         """ Setup ssh client connection and return connection
         vm requires attributes public_ip, public_port, username, password """
 
+        ssh_client = None
         try:
             ssh_client = SshClient(
                 vm.public_ip,
@@ -547,8 +582,41 @@ class TestInternalLb(cloudstackTestCase):
 
     @attr(tags=["smoke", "advanced"], required_hardware="true")
     def test_01_internallb_roundrobin_1VPC_3VM_HTTP_port80(self):
-        """Test create, assign, remove of an Internal LB with roundrobin http traffic to 3 vm's
         """
+           Test create, assign, remove of an Internal LB with roundrobin http traffic to 3 vm's in a Single VPC
+        """
+        self.logger.debug("Starting test_01_internallb_roundrobin_1VPC_3VM_HTTP_port80")
+
+        self.logger.debug("Creating a VPC offering..")
+        vpc_offering = VpcOffering.create(
+            self.apiclient,
+            self.services["vpc_offering"])
+
+        self.logger.debug("Enabling the VPC offering created")
+        vpc_offering.update(self.apiclient, state='Enabled')
+
+        self.cleanup.insert(0, vpc_offering)
+        self.execute_internallb_roundrobin_tests(vpc_offering)
+
+    @attr(tags=["smoke", "advanced"], required_hardware="true")
+    def test_02_internallb_roundrobin_1RVPC_3VM_HTTP_port80(self):
+        """
+           Test create, assign, remove of an Internal LB with roundrobin http traffic to 3 vm's in a Redundant VPC
+        """
+        self.logger.debug("Starting test_02_internallb_roundrobin_1RVPC_3VM_HTTP_port80")
+
+        self.logger.debug("Creating a Redundant VPC offering..")
+        redundant_vpc_offering = VpcOffering.create(
+            self.apiclient,
+            self.services["redundant_vpc_offering"])
+
+        self.logger.debug("Enabling the Redundant VPC offering created")
+        redundant_vpc_offering.update(self.apiclient, state='Enabled')
+
+        self.cleanup.insert(0, redundant_vpc_offering)
+        self.execute_internallb_roundrobin_tests(redundant_vpc_offering)
+
+    def execute_internallb_roundrobin_tests(self, vpc_offering):
         max_http_requests = 30
         algorithm = "roundrobin"
         public_lb_port = 80
@@ -564,7 +632,7 @@ class TestInternalLb(cloudstackTestCase):
             self.services["network_offering_internal_lb"])
 
         # Create VPC
-        vpc = self.create_vpc("vpc_intlb_test01", "10.1.0.0/16")
+        vpc = self.create_vpc(vpc_offering)
 
         # Create network tiers
         network_guestnet = self.create_network_tier(
@@ -674,14 +742,48 @@ class TestInternalLb(cloudstackTestCase):
             return False
 
     @attr(tags=["smoke", "advanced"], required_hardware="true")
-    def test02_internallb_haproxy_stats_on_all_interfaces(self):
+    def test_03_vpc_internallb_haproxy_stats_on_all_interfaces(self):
         """ Test to verify access to loadbalancer haproxy admin stats page
             when global setting network.loadbalancer.haproxy.stats.visibility is set to 'all'
             with credentials from global setting network.loadbalancer.haproxy.stats.auth
-            using the uri from global setting network.loadbalancer.haproxy.stats.uri"""
+            using the uri from global setting network.loadbalancer.haproxy.stats.uri.
 
-        self.logger.debug(
-            "Starting test_02_internallb_haproxy_stats_on_all_interfaces")
+            It uses a Single Router VPC
+        """
+        self.logger.debug("Starting test_03_vpc_internallb_haproxy_stats_on_all_interfaces")
+
+        self.logger.debug("Creating a VPC offering..")
+        vpc_offering = VpcOffering.create(
+            self.apiclient,
+            self.services["vpc_offering"])
+
+        self.logger.debug("Enabling the VPC offering created")
+        vpc_offering.update(self.apiclient, state='Enabled')
+
+        self.execute_internallb_haproxy_tests(vpc_offering)
+
+    @attr(tags=["smoke", "advanced"], required_hardware="true")
+    def test_04_rvpc_internallb_haproxy_stats_on_all_interfaces(self):
+        """ Test to verify access to loadbalancer haproxy admin stats page
+            when global setting network.loadbalancer.haproxy.stats.visibility is set to 'all'
+            with credentials from global setting network.loadbalancer.haproxy.stats.auth
+            using the uri from global setting network.loadbalancer.haproxy.stats.uri.
+
+            It uses a Redundant Routers VPC
+        """
+        self.logger.debug("Starting test_04_rvpc_internallb_haproxy_stats_on_all_interfaces")
+
+        self.logger.debug("Creating a Redundant VPC offering..")
+        redundant_vpc_offering = VpcOffering.create(
+            self.apiclient,
+            self.services["redundant_vpc_offering"])
+
+        self.logger.debug("Enabling the Redundant VPC offering created")
+        redundant_vpc_offering.update(self.apiclient, state='Enabled')
+
+        self.execute_internallb_haproxy_tests(redundant_vpc_offering)
+
+    def execute_internallb_haproxy_tests(self, vpc_offering):
 
         settings = self.get_lb_stats_settings()
 
@@ -702,7 +804,7 @@ class TestInternalLb(cloudstackTestCase):
             self.services["network_offering_internal_lb"])
 
         # Create VPC
-        vpc = self.create_vpc("vpc_intlb_test_02", "10.1.0.0/16")
+        vpc = self.create_vpc(vpc_offering)
 
         # Create network tier with internal lb service enabled
         network_internal_lb = self.create_network_tier(
@@ -733,14 +835,20 @@ class TestInternalLb(cloudstackTestCase):
         # Verify access to and the contents of the admin stats page on the
         # private address via a vm in the internal lb tier
         stats = self.verify_lb_stats(
-            applb.sourceipaddress, self.get_ssh_client(vm, 4), settings)
+            applb.sourceipaddress, self.get_ssh_client(vm, 5), settings)
         self.assertTrue(stats, "Failed to verify LB HAProxy stats")
 
     @classmethod
     def tearDownClass(cls):
         try:
-            cls.logger.debug("Cleaning up testcase resources")
-            cleanup_resources(cls.apiclient, cls.cleanup)
+            cls.logger.debug("Cleaning up class resources")
+            cleanup_resources(cls.apiclient, cls._cleanup)
+        except Exception as e:
+            raise Exception("Cleanup failed with %s" % e)
 
+    def tearDown(self):
+        try:
+            self.logger.debug("Cleaning up test resources")
+            cleanup_resources(self.apiclient, self.cleanup)
         except Exception as e:
             raise Exception("Cleanup failed with %s" % e)

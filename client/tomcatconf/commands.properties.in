@@ -282,12 +282,9 @@ listCapacity=3
 addSwift=1
 listSwifts=1
 
-#### s3 commands
-addS3=1
-listS3s=1
-
 #### image store commands
 addImageStore=1
+addImageStoreS3=1
 listImageStores=1
 deleteImageStore=1
 createSecondaryStagingStore=1
@@ -405,6 +402,7 @@ updateDefaultNicForVirtualMachine=15
 ####
 addIpToNic=15
 removeIpFromNic=15
+updateVmNicIp=15
 listNics=15
 
 #### SSH key pair commands
@@ -644,6 +642,7 @@ deleteStratoshereSsp=1
 #### nuage vsp commands
 
 addNuageVspDevice=1
+updateNuageVspDevice=1
 deleteNuageVspDevice=1
 listNuageVspDevices=1
 issueNuageVspResourceRequest=15
@@ -788,3 +787,15 @@ addGloboDnsHost=1
 ### volume/template post upload
 getUploadParamsForVolume=15
 getUploadParamsForTemplate=15
+
+### Quota Service
+quotaStatement=15
+quotaBalance=15
+quotaSummary=15
+quotaUpdate=1
+quotaTariffList=15
+quotaTariffUpdate=1
+quotaCredits=1
+quotaEmailTemplateList=1
+quotaEmailTemplateUpdate=1
+quotaIsEnabled=15

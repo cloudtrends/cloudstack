@@ -27,9 +27,10 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-import javax.ejb.Local;
 import javax.naming.ConfigurationException;
 
+import com.cloud.utils.exception.CloudRuntimeException;
+import com.rabbitmq.client.BlockedListener;
 import org.apache.log4j.Logger;
 
 import com.rabbitmq.client.AMQP;
@@ -53,7 +54,6 @@ import org.apache.cloudstack.managed.context.ManagedContextRunnable;
 import com.cloud.utils.Ternary;
 import com.cloud.utils.component.ManagerBase;
 
-@Local(value = EventBus.class)
 public class RabbitMQEventBus extends ManagerBase implements EventBus {
 
     // details of AMQP server
@@ -93,6 +93,7 @@ public class RabbitMQEventBus extends ManagerBase implements EventBus {
 
     private ExecutorService executorService;
     private static DisconnectHandler disconnectHandler;
+    private static BlockedConnectionHandler blockedConnectionHandler;
     private static final Logger s_logger = Logger.getLogger(RabbitMQEventBus.class);
 
     @Override
@@ -136,6 +137,7 @@ public class RabbitMQEventBus extends ManagerBase implements EventBus {
         s_subscribers = new ConcurrentHashMap<String, Ternary<String, Channel, EventSubscriber>>();
         executorService = Executors.newCachedThreadPool();
         disconnectHandler = new DisconnectHandler();
+        blockedConnectionHandler = new BlockedConnectionHandler();
 
         return true;
     }
@@ -384,6 +386,7 @@ public class RabbitMQEventBus extends ManagerBase implements EventBus {
             }
             Connection connection = factory.newConnection();
             connection.addShutdownListener(disconnectHandler);
+            connection.addBlockedListener(blockedConnectionHandler);
             s_connection = connection;
             return s_connection;
         } catch (Exception e) {
@@ -507,6 +510,21 @@ public class RabbitMQEventBus extends ManagerBase implements EventBus {
         return true;
     }
 
+    //logic to deal with blocked connection. connections are blocked for example when the rabbitmq server is out of space. https://www.rabbitmq.com/connection-blocked.html
+    private class BlockedConnectionHandler implements BlockedListener {
+
+        @Override
+        public void handleBlocked(String reason) throws IOException {
+            s_logger.error("rabbitmq connection is blocked with reason: " + reason);
+            closeConnection();
+            throw new CloudRuntimeException("unblocking the parent thread as publishing to rabbitmq server is blocked with reason: " + reason);
+        }
+
+        @Override
+        public void handleUnblocked() throws IOException {
+            s_logger.info("rabbitmq connection in unblocked");
+        }
+    }
     // logic to deal with loss of connection to AMQP server
     private class DisconnectHandler implements ShutdownListener {
 

@@ -27,7 +27,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import javax.ejb.Local;
 import javax.inject.Inject;
 
 import org.apache.cloudstack.api.ApiConstants;
@@ -168,7 +167,6 @@ import com.cloud.vm.dao.UserVmDao;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 
-@Local(value = {LoadBalancingRulesManager.class, LoadBalancingRulesService.class})
 public class LoadBalancingRulesManagerImpl<Type> extends ManagerBase implements LoadBalancingRulesManager, LoadBalancingRulesService {
     private static final Logger s_logger = Logger.getLogger(LoadBalancingRulesManagerImpl.class);
 
@@ -598,7 +596,7 @@ public class LoadBalancingRulesManagerImpl<Type> extends ManagerBase implements 
          */
         if (!validateHealthCheck(cmd)) {
             throw new InvalidParameterValueException(
-                "Failed to create HealthCheck policy: Validation Failed (HealthCheck Policy is not supported by LB Provider for the LB rule id :)" + cmd.getLbRuleId());
+                "Failed to create HealthCheck policy: Validation Failed (HealthCheck Policy is not supported by LB Provider for the LB rule id :" + cmd.getLbRuleId() + ")");
         }
 
         /* Validation : check for the multiple hc policies to the rule id */

@@ -390,6 +390,14 @@ public class LibvirtComputingResourceTest {
     }
 
     @Test
+    public void diskUuidToSerialTest() {
+        String uuid = "38400000-8cf0-11bd-b24e-10b96e4ef00d";
+        String expected = "384000008cf011bdb24e";
+        LibvirtComputingResource lcr = new LibvirtComputingResource();
+        Assert.assertEquals(expected, lcr.diskUuidToSerial(uuid));
+    }
+
+    @Test
     public void testUUID() {
         String uuid = "1";
         final LibvirtComputingResource lcr = new LibvirtComputingResource();
@@ -5005,10 +5013,11 @@ public class LibvirtComputingResourceTest {
         LibvirtComputingResource lvcr = new LibvirtComputingResource();
         assertFalse(lvcr.isInterface("bla"));
         assertTrue(lvcr.isInterface("p99p00"));
-        for  (String ifNamePrefix : lvcr._ifNamePrefixes) {
+        for  (String ifNamePattern : lvcr._ifNamePatterns) {
             // excluding regexps as "\\\\d+" won't replace with String.replaceAll(String,String);
-            if (!ifNamePrefix.contains("\\")) {
-                assertTrue(lvcr.isInterface(ifNamePrefix + "0"));
+            if (!ifNamePattern.contains("\\")) {
+                String ifName = ifNamePattern.replaceFirst("\\^", "") + "0";
+                assertTrue("The pattern '" + ifNamePattern + "' is expected to be valid for interface " + ifName,lvcr.isInterface(ifName));
             }
         }
     }

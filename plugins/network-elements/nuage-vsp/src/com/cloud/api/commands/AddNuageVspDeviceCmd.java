@@ -19,18 +19,6 @@
 
 package com.cloud.api.commands;
 
-import javax.inject.Inject;
-
-import org.apache.cloudstack.api.APICommand;
-import org.apache.cloudstack.api.ApiConstants;
-import org.apache.cloudstack.api.ApiErrorCode;
-import org.apache.cloudstack.api.BaseAsyncCmd;
-import org.apache.cloudstack.api.BaseCmd;
-import org.apache.cloudstack.api.Parameter;
-import org.apache.cloudstack.api.ServerApiException;
-import org.apache.cloudstack.api.response.PhysicalNetworkResponse;
-import org.apache.cloudstack.context.CallContext;
-
 import com.cloud.api.response.NuageVspDeviceResponse;
 import com.cloud.event.EventTypes;
 import com.cloud.exception.ConcurrentOperationException;
@@ -41,8 +29,19 @@ import com.cloud.exception.ResourceUnavailableException;
 import com.cloud.network.NuageVspDeviceVO;
 import com.cloud.network.manager.NuageVspManager;
 import com.cloud.utils.exception.CloudRuntimeException;
+import org.apache.cloudstack.api.APICommand;
+import org.apache.cloudstack.api.ApiConstants;
+import org.apache.cloudstack.api.ApiErrorCode;
+import org.apache.cloudstack.api.BaseAsyncCmd;
+import org.apache.cloudstack.api.BaseCmd;
+import org.apache.cloudstack.api.Parameter;
+import org.apache.cloudstack.api.ServerApiException;
+import org.apache.cloudstack.api.response.PhysicalNetworkResponse;
+import org.apache.cloudstack.context.CallContext;
 
-@APICommand(name = "addNuageVspDevice", responseObject = NuageVspDeviceResponse.class, description = "Adds a Nuage VSP device")
+import javax.inject.Inject;
+
+@APICommand(name = "addNuageVspDevice", responseObject = NuageVspDeviceResponse.class, description = "Adds a Nuage VSP device", since = "4.5")
 public class AddNuageVspDeviceCmd extends BaseAsyncCmd {
     private static final String s_name = "addnuagevspdeviceresponse";
 

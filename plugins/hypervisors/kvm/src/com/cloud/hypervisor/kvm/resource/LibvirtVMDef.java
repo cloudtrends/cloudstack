@@ -16,7 +16,9 @@
 // under the License.
 package com.cloud.hypervisor.kvm.resource;
 
+import com.google.common.collect.Maps;
 import org.apache.commons.lang.StringEscapeUtils;
+import org.apache.log4j.Logger;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -24,6 +26,8 @@ import java.util.List;
 import java.util.Map;
 
 public class LibvirtVMDef {
+    private static final Logger s_logger = Logger.getLogger(LibvirtVMDef.class);
+
     private String _hvsType;
     private static long s_libvirtVersion;
     private static long s_qemuVersion;
@@ -191,22 +195,57 @@ public class LibvirtVMDef {
     }
 
     public static class HyperVEnlightenmentFeatureDef {
-        private final Map<String, String> features = new HashMap<String,String>();
-        public void setRelaxed(boolean on) {
-            String state = on ? "On":"Off";
-            features.put("relaxed", state);
+        enum Enlight {
+            RELAX("relaxed"),
+            VAPIC("vapic"),
+            SPIN("spinlocks");
+
+            private final String featureName;
+            Enlight(String featureName) { this.featureName = featureName; }
+            String getFeatureName() { return featureName; }
+
+            static boolean isValidFeature(String featureName) {
+                Enlight[] enlights = Enlight.values();
+                for(Enlight e : enlights) {
+                    if(e.getFeatureName().equals(featureName))
+                        return true;
+                }
+                return false;
+            }
         }
+
+        private final Map<String, String> features = new HashMap<String, String>();
+        private int retries = 4096; // set to sane default
+
+        public void setFeature(String feature, boolean on) {
+            if(on && Enlight.isValidFeature(feature))
+                setFeature(feature);
+        }
+
+        private void setFeature(String feature) {
+            features.put(feature, "on");
+        }
+
+        public void setRetries(int retry) {
+            if(retry>=retries)
+                retries=retry;
+        }
+
+        public int getRetries() {
+            return retries;
+        }
+
         @Override
         public String toString() {
-            if (features.isEmpty()) {
-                return "";
-            }
             StringBuilder feaBuilder = new StringBuilder();
             feaBuilder.append("<hyperv>\n");
             for (Map.Entry<String, String> e : features.entrySet()) {
                 feaBuilder.append("<");
                 feaBuilder.append(e.getKey());
-                feaBuilder.append(" state='" + e.getValue() + "'");
+
+                if(e.getKey().equals("spinlocks"))  feaBuilder.append(" state='" + e.getValue() + "' retries='" + getRetries() + "'");
+                else                                feaBuilder.append(" state='" + e.getValue() + "'");
+
                 feaBuilder.append("/>\n");
             }
             feaBuilder.append("</hyperv>\n");
@@ -419,7 +458,7 @@ public class LibvirtVMDef {
 
     public static class DiskDef {
         public enum DeviceType {
-            FLOPPY("floppy"), DISK("disk"), CDROM("cdrom");
+            FLOPPY("floppy"), DISK("disk"), CDROM("cdrom"), LUN("lun");
             String _type;
 
             DeviceType(String type) {
@@ -524,6 +563,7 @@ public class LibvirtVMDef {
         private Long _iopsReadRate;
         private Long _iopsWriteRate;
         private DiskCacheMode _diskCacheMode;
+        private String _serial;
         private boolean qemuDriver = true;
 
         public void setDeviceType(DeviceType deviceType) {
@@ -708,6 +748,10 @@ public class LibvirtVMDef {
             this.qemuDriver = qemuDriver;
         }
 
+        public void setSerial(String serial) {
+            this._serial = serial;
+        }
+
         @Override
         public String toString() {
             StringBuilder diskBuilder = new StringBuilder();
@@ -760,6 +804,10 @@ public class LibvirtVMDef {
                 diskBuilder.append(" bus='" + _bus + "'");
             }
             diskBuilder.append("/>\n");
+
+            if (_serial != null && !_serial.isEmpty() && _deviceType != DeviceType.LUN) {
+                diskBuilder.append("<serial>" + _serial + "</serial>");
+            }
 
             if ((_deviceType != DeviceType.CDROM) &&
                     (s_libvirtVersion >= 9008) &&
@@ -1267,6 +1315,57 @@ public class LibvirtVMDef {
         }
     }
 
+    public static class MetadataDef {
+        Map<String, Object> customNodes = new HashMap<>();
+
+        public <T> T getMetadataNode(Class<T> fieldClass) {
+            T field = (T) customNodes.get(fieldClass.getName());
+            if (field == null) {
+                try {
+                    field = fieldClass.newInstance();
+                    customNodes.put(field.getClass().getName(), field);
+                } catch (InstantiationException | IllegalAccessException e) {
+                    s_logger.debug("No default constructor available in class " + fieldClass.getName() + ", ignoring exception", e);
+                }
+            }
+            return field;
+        }
+
+        @Override
+        public String toString() {
+            StringBuilder fsBuilder = new StringBuilder();
+            fsBuilder.append("<metadata>\n");
+            for (Object field : customNodes.values()) {
+                fsBuilder.append(field.toString());
+            }
+            fsBuilder.append("</metadata>\n");
+            return fsBuilder.toString();
+        }
+    }
+
+    public static class NuageExtensionDef {
+        private Map<String, String> addresses = Maps.newHashMap();
+
+        public void addNuageExtension(String macAddress, String vrIp) {
+            addresses.put(macAddress, vrIp);
+        }
+
+        @Override
+        public String toString() {
+            StringBuilder fsBuilder = new StringBuilder();
+            for (Map.Entry<String, String> address : addresses.entrySet()) {
+                fsBuilder.append("<nuage-extension>\n")
+                        .append("  <interface mac='")
+                        .append(address.getKey())
+                        .append("' vsp-vr-ip='")
+                        .append(address.getValue())
+                        .append("'></interface>\n")
+                        .append("</nuage-extension>\n");
+            }
+            return fsBuilder.toString();
+        }
+    }
+
     public void setHvsType(String hvs) {
         _hvsType = hvs;
     }
@@ -1325,6 +1424,15 @@ public class LibvirtVMDef {
             return (DevicesDef)o;
         }
         return null;
+    }
+
+    public MetadataDef getMetaData() {
+        MetadataDef o = (MetadataDef) components.get(MetadataDef.class.toString());
+        if (o == null) {
+            o = new MetadataDef();
+            addComp(o);
+        }
+        return o;
     }
 
     @Override

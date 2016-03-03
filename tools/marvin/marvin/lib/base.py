@@ -1201,6 +1201,9 @@ class Template:
             random_gen()
         ]) if random_name else services["name"]
 
+	if services["ispublic"]:
+	    cmd.ispublic = services["ispublic"]
+
         if "ostypeid" in services:
             cmd.ostypeid = services["ostypeid"]
         elif "ostype" in services:
@@ -3572,6 +3575,8 @@ class VpnCustomerGateway:
             cmd.esplifetime = services["esplifetime"]
         if "dpd" in services:
             cmd.dpd = services["dpd"]
+        if "forceencap" in services:
+            cmd.forceencap = services["forceencap"]
         if account:
             cmd.account = account
         if domainid:
@@ -3599,6 +3604,8 @@ class VpnCustomerGateway:
             cmd.esplifetime = services["esplifetime"]
         if "dpd" in services:
             cmd.dpd = services["dpd"]
+        if "forceencap" in services:
+            cmd.forceencap = services["forceencap"]
         return(apiclient.updateVpnCustomerGateway(cmd))
 
     def delete(self, apiclient):
@@ -3853,7 +3860,7 @@ class NiciraNvp:
 
     @classmethod
     def add(cls, apiclient, services, physicalnetworkid,
-            hostname=None, username=None, password=None, transportzoneuuid=None):
+            hostname=None, username=None, password=None, transportzoneuuid=None, l2gatewayserviceuuid=None):
         cmd = addNiciraNvpDevice.addNiciraNvpDeviceCmd()
         cmd.physicalnetworkid = physicalnetworkid
         if hostname:
@@ -3876,7 +3883,12 @@ class NiciraNvp:
         else:
             cmd.transportzoneuuid = services['transportZoneUuid']
 
-        return NiciraNvp(apiclient.addNiciraNvpDevice(cmd).__dict__)
+        if l2gatewayserviceuuid:
+            cmd.l2gatewayserviceuuid = l2gatewayserviceuuid
+        elif services and 'l2gatewayserviceuuid' in services:
+            cmd.l2gatewayserviceuuid = services['l2gatewayserviceuuid']
+
+	return NiciraNvp(apiclient.addNiciraNvpDevice(cmd).__dict__)
 
     def delete(self, apiclient):
         cmd = deleteNiciraNvpDevice.deleteNiciraNvpDeviceCmd()
@@ -4056,16 +4068,24 @@ class VpcOffering:
     def create(cls, apiclient, services):
         """Create vpc offering"""
 
+        import logging
+
         cmd = createVPCOffering.createVPCOfferingCmd()
         cmd.name = "-".join([services["name"], random_gen()])
         cmd.displaytext = services["displaytext"]
         cmd.supportedServices = services["supportedservices"]
         if "serviceProviderList" in services:
             for service, provider in services["serviceProviderList"].items():
-                cmd.serviceproviderlist.append({
-                    'service': service,
-                    'provider': provider
-                })
+                providers = provider
+                if isinstance(provider, str):
+                    providers = [provider]
+
+                for provider_item in providers:
+                    cmd.serviceproviderlist.append({
+                        'service': service,
+                        'provider': provider_item
+                    })
+
         if "serviceCapabilityList" in services:
             cmd.servicecapabilitylist = []
             for service, capability in \
@@ -4220,7 +4240,7 @@ class AffinityGroup:
         self.__dict__.update(items)
 
     @classmethod
-    def create(cls, apiclient, aff_grp, account=None, domainid=None):
+    def create(cls, apiclient, aff_grp, account=None, domainid=None, projectid=None):
         cmd = createAffinityGroup.createAffinityGroupCmd()
         cmd.name = aff_grp['name']
         cmd.displayText = aff_grp['name']
@@ -4229,6 +4249,8 @@ class AffinityGroup:
             cmd.account = account
         if domainid:
             cmd.domainid = domainid
+        if projectid:
+            cmd.projectid = projectid
         return AffinityGroup(apiclient.createAffinityGroup(cmd).__dict__)
 
     def update(self, apiclient):
