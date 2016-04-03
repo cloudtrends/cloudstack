@@ -14,22 +14,27 @@
 // KIND, either express or implied.  See the License for the
 // specific language governing permissions and limitations
 // under the License.
-package com.cloud.vm;
+package org.apache.cloudstack.api;
 
-public interface VmStats {
-    // vm related stats
-    public double getCPUUtilization();
+import java.util.Set;
 
-    public double getNetworkReadKBs();
+import org.apache.cloudstack.api.response.ResourceTagResponse;
 
-    public double getNetworkWriteKBs();
+import com.cloud.serializer.Param;
+import com.google.gson.annotations.SerializedName;
 
-    public double getDiskReadIOs();
+public abstract class BaseResponseWithTagInformation extends BaseResponse {
 
-    public double getDiskWriteIOs();
+    @SerializedName(ApiConstants.TAGS)
+    @Param(description = "the list of resource tags associated", responseObject = ResourceTagResponse.class)
+    protected Set<ResourceTagResponse> tags;
 
-    public double getDiskReadKBs();
+    public void addTag(ResourceTagResponse tag) {
+        this.tags.add(tag);
+    }
 
-    public double getDiskWriteKBs();
+    public Set<ResourceTagResponse> getTags(){
+        return this.tags;
+    }
 
 }
