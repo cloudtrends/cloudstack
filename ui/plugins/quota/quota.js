@@ -25,12 +25,18 @@
           id: 'quota',
           title: 'Quota',
           preFilter: function(args) {
-    	        var retval = $.ajax({
-                	url: createURL("quotaIsEnabled"),
-                	async: false
+                var pluginEnabled = false;
+                $.ajax({
+                    url: createURL("quotaIsEnabled"),
+                    async: false,
+                    success: function(json) {
+                        pluginEnabled = json.quotaisenabledresponse.isenabled.isenabled;
+                    },
+                    error: function(data) {
+                        pluginEnabled = false;
+                    }
                 });
-    	        var json = JSON.parse(retval.responseText);
-    	        return json.quotaisenabledresponse.isenabled.isenabled;
+                return pluginEnabled;
           },
           showOnNavigation: true,
           sectionSelect: {
@@ -328,13 +334,6 @@
                           });
                       },
                       detailView: {
-                          viewAll: [{
-                              path: 'quota.quotastatement',
-                              label: 'label.quota.statement.quota'
-                          },{
-                              path: 'quota.balancestatement',
-                              label: 'label.quota.statement.balance'
-                          }],
                           actions: {
                              add: {
                                 label: 'label.quota.add.credits',

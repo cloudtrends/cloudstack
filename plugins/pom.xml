@@ -50,6 +50,7 @@
     <module>api/solidfire-intg-test</module>
     <module>api/discovery</module>
     <module>acl/static-role-based</module>
+    <module>acl/dynamic-role-based</module>
     <module>affinity-group-processors/host-anti-affinity</module>
     <module>affinity-group-processors/explicit-dedication</module>
     <module>deployment-planners/user-concentrated-pod</module>
@@ -79,6 +80,7 @@
     <module>network-elements/midonet</module>
     <module>network-elements/stratosphere-ssp</module>
     <module>network-elements/opendaylight</module>
+    <module>outofbandmanagement-drivers/ipmitool</module>
     <module>storage-allocators/random</module>
     <module>user-authenticators/ldap</module>
     <module>user-authenticators/md5</module>

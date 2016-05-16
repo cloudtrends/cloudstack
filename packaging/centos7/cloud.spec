@@ -50,7 +50,7 @@ BuildRequires: jpackage-utils
 BuildRequires: gcc
 BuildRequires: glibc-devel
 BuildRequires: /usr/bin/mkisofs
-BuildRequires: MySQL-python
+BuildRequires: mysql-connector-python
 BuildRequires: maven => 3.0.0
 
 %description
@@ -79,7 +79,7 @@ Requires: /sbin/service
 Requires: /sbin/chkconfig
 Requires: /usr/bin/ssh-keygen
 Requires: mkisofs
-Requires: MySQL-python
+Requires: mysql-connector-python
 Requires: ipmitool
 Requires: %{name}-common = %{_ver}
 Requires: iptables-services
@@ -272,6 +272,7 @@ install -D server/target/conf/cloudstack-sudoers ${RPM_BUILD_ROOT}%{_sysconfdir}
 install -D packaging/centos7/cloud-management.service ${RPM_BUILD_ROOT}%{_unitdir}/%{name}-management.service
 install -D packaging/centos7/cloud.limits ${RPM_BUILD_ROOT}%{_sysconfdir}/security/limits.d/cloud
 touch ${RPM_BUILD_ROOT}%{_localstatedir}/run/%{name}-management.pid
+install -D server/target/conf/cloudstack-catalina.logrotate ${RPM_BUILD_ROOT}%{_sysconfdir}/logrotate.d/%{name}-catalina
 
 chmod 440 ${RPM_BUILD_ROOT}%{_sysconfdir}/sudoers.d/%{name}-management
 chmod 770 ${RPM_BUILD_ROOT}%{_sysconfdir}/%{name}/management/Catalina
@@ -476,6 +477,7 @@ fi
 %{_defaultdocdir}/%{name}-management-%{version}/LICENSE
 %{_defaultdocdir}/%{name}-management-%{version}/NOTICE
 %attr(0644,cloud,cloud) %{_localstatedir}/log/%{name}/management/catalina.out
+%attr(0644,root,root) %{_sysconfdir}/logrotate.d/%{name}-catalina
 
 %files agent
 %attr(0755,root,root) %{_bindir}/%{name}-setup-agent

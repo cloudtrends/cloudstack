@@ -33,6 +33,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
+import com.google.common.base.Strings;
 import org.apache.commons.lang.StringUtils;
 import org.apache.log4j.Logger;
 
@@ -70,6 +71,7 @@ import org.apache.cloudstack.storage.to.VolumeObjectTO;
 
 import com.cloud.agent.api.Answer;
 import com.cloud.agent.api.Command;
+import com.cloud.agent.api.ModifyTargetsCommand;
 import com.cloud.agent.api.to.DataStoreTO;
 import com.cloud.agent.api.to.DataTO;
 import com.cloud.agent.api.to.DiskTO;
@@ -88,7 +90,7 @@ import com.cloud.hypervisor.vmware.mo.HostMO;
 import com.cloud.hypervisor.vmware.mo.HostStorageSystemMO;
 import com.cloud.hypervisor.vmware.mo.HypervisorHostHelper;
 import com.cloud.hypervisor.vmware.mo.NetworkDetails;
-import com.cloud.hypervisor.vmware.mo.VirtualMachineDiskInfo;
+import org.apache.cloudstack.utils.volume.VirtualMachineDiskInfo;
 import com.cloud.hypervisor.vmware.mo.VirtualMachineMO;
 import com.cloud.hypervisor.vmware.mo.VmwareHypervisorHost;
 import com.cloud.hypervisor.vmware.resource.VmwareResource;
@@ -1366,24 +1368,15 @@ public class VmwareStorageProcessor implements StorageProcessor {
             AttachAnswer answer = new AttachAnswer(disk);
 
             if (isAttach) {
-                String dataDiskController = controllerInfo.get(VmDetailConstants.DATA_DISK_CONTROLLER);
-                String rootDiskController = controllerInfo.get(VmDetailConstants.ROOT_DISK_CONTROLLER);
-                DiskControllerType rootDiskControllerType = DiskControllerType.getType(rootDiskController);
-
-                if (dataDiskController == null) {
-                    dataDiskController = getLegacyVmDataDiskController();
-                } else if ((rootDiskControllerType == DiskControllerType.lsilogic) ||
-                           (rootDiskControllerType == DiskControllerType.lsisas1068) ||
-                           (rootDiskControllerType == DiskControllerType.pvscsi) ||
-                           (rootDiskControllerType == DiskControllerType.buslogic)) {
-                    //TODO: Support mix of SCSI controller types for single VM. If root disk is already over
-                    //a SCSI controller then use the same for data volume as well. This limitation will go once mix
-                    //of SCSI controller types for single VM.
-                    dataDiskController = rootDiskController;
-                } else if (DiskControllerType.getType(dataDiskController) == DiskControllerType.osdefault) {
-                    dataDiskController = vmMo.getRecommendedDiskController(null);
+                String diskController = getLegacyVmDataDiskController();
+                if (controllerInfo != null &&
+                        !Strings.isNullOrEmpty(controllerInfo.get(VmDetailConstants.DATA_DISK_CONTROLLER))) {
+                    diskController = controllerInfo.get(VmDetailConstants.DATA_DISK_CONTROLLER);
                 }
-                vmMo.attachDisk(new String[] {datastoreVolumePath}, morDs, dataDiskController);
+                if (DiskControllerType.getType(diskController) == DiskControllerType.osdefault) {
+                    diskController = vmMo.getRecommendedDiskController(null);
+                }
+                vmMo.attachDisk(new String[] {datastoreVolumePath}, morDs, diskController);
             } else {
                 vmMo.removeAllSnapshots();
                 vmMo.detachDisk(datastoreVolumePath, false);
@@ -1919,14 +1912,77 @@ public class VmwareStorageProcessor implements StorageProcessor {
         return (int)(bytes / (1024L * 1024L));
     }
 
-    private void addRemoveInternetScsiTargetsToAllHosts(VmwareContext context, final boolean add, final List<HostInternetScsiHbaStaticTarget> lstTargets,
-            List<Pair<ManagedObjectReference, String>> lstHosts) throws Exception {
-        ExecutorService executorService = Executors.newFixedThreadPool(lstHosts.size());
+    public void handleTargetsForHost(boolean add, List<Map<String, String>> targets, HostMO host) throws Exception {
+        List<HostInternetScsiHbaStaticTarget> lstTargets = new ArrayList<HostInternetScsiHbaStaticTarget>();
+
+        for (Map<String, String> mapTarget : targets) {
+            HostInternetScsiHbaStaticTarget target = new HostInternetScsiHbaStaticTarget();
+
+            String targetAddress = mapTarget.get(ModifyTargetsCommand.STORAGE_HOST);
+            Integer targetPort = Integer.parseInt(mapTarget.get(ModifyTargetsCommand.STORAGE_PORT));
+            String iScsiName = trimIqn(mapTarget.get(ModifyTargetsCommand.IQN));
+
+            target.setAddress(targetAddress);
+            target.setPort(targetPort);
+            target.setIScsiName(iScsiName);
+
+            String chapName = mapTarget.get(ModifyTargetsCommand.CHAP_NAME);
+            String chapSecret = mapTarget.get(ModifyTargetsCommand.CHAP_SECRET);
+
+            if (StringUtils.isNotBlank(chapName) && StringUtils.isNotBlank(chapSecret)) {
+                HostInternetScsiHbaAuthenticationProperties auth = new HostInternetScsiHbaAuthenticationProperties();
+
+                String strAuthType = "chapRequired";
+
+                auth.setChapAuthEnabled(true);
+                auth.setChapInherited(false);
+                auth.setChapAuthenticationType(strAuthType);
+                auth.setChapName(chapName);
+                auth.setChapSecret(chapSecret);
+
+                String mutualChapName = mapTarget.get(ModifyTargetsCommand.MUTUAL_CHAP_NAME);
+                String mutualChapSecret = mapTarget.get(ModifyTargetsCommand.MUTUAL_CHAP_SECRET);
+
+                if (StringUtils.isNotBlank(mutualChapName) && StringUtils.isNotBlank(mutualChapSecret)) {
+                    auth.setMutualChapInherited(false);
+                    auth.setMutualChapAuthenticationType(strAuthType);
+                    auth.setMutualChapName(mutualChapName);
+                    auth.setMutualChapSecret(mutualChapSecret);
+                }
+
+                target.setAuthenticationProperties(auth);
+            }
+
+            lstTargets.add(target);
+        }
+
+        List<HostMO> hosts = new ArrayList<>();
+
+        hosts.add(host);
+
+        addRemoveInternetScsiTargetsToAllHosts(add, lstTargets, hosts);
+    }
+
+    private void addRemoveInternetScsiTargetsToAllHosts(VmwareContext context, final boolean add, final List<HostInternetScsiHbaStaticTarget> targets,
+            List<Pair<ManagedObjectReference, String>> hostPairs) throws Exception {
+        List<HostMO> hosts = new ArrayList<>();
+
+        for (Pair<ManagedObjectReference, String> hostPair : hostPairs) {
+            HostMO host = new HostMO(context, hostPair.first());
+
+            hosts.add(host);
+        }
+
+        addRemoveInternetScsiTargetsToAllHosts(add, targets, hosts);
+    }
+
+    private void addRemoveInternetScsiTargetsToAllHosts(final boolean add, final List<HostInternetScsiHbaStaticTarget> targets,
+            List<HostMO> hosts) throws Exception {
+        ExecutorService executorService = Executors.newFixedThreadPool(hosts.size());
 
         final List<Exception> exceptions = new ArrayList<Exception>();
 
-        for (Pair<ManagedObjectReference, String> hostPair : lstHosts) {
-            HostMO host = new HostMO(context, hostPair.first());
+        for (HostMO host : hosts) {
             HostStorageSystemMO hostStorageSystem = host.getHostStorageSystemMO();
 
             boolean iScsiHbaConfigured = false;
@@ -1946,9 +2002,9 @@ public class VmwareStorageProcessor implements StorageProcessor {
                         public void run() {
                             try {
                                 if (add) {
-                                    hss.addInternetScsiStaticTargets(iScsiHbaDevice, lstTargets);
+                                    hss.addInternetScsiStaticTargets(iScsiHbaDevice, targets);
                                 } else {
-                                    hss.removeInternetScsiStaticTargets(iScsiHbaDevice, lstTargets);
+                                    hss.removeInternetScsiStaticTargets(iScsiHbaDevice, targets);
                                 }
 
                                 hss.rescanHba(iScsiHbaDevice);

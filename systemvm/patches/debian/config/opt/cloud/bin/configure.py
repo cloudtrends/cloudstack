@@ -42,6 +42,7 @@ from cs.CsMonitor import CsMonitor
 from cs.CsLoadBalancer import CsLoadBalancer
 from cs.CsConfig import CsConfig
 from cs.CsProcess import CsProcess
+from cs.CsStaticRoutes import CsStaticRoutes
 
 
 class CsPassword(CsDataBag):
@@ -72,27 +73,6 @@ class CsPassword(CsDataBag):
                 '-F "token={TOKEN}" >/dev/null 2>/dev/null &'.format(SERVER_IP=server_ip, VM_IP=vm_ip, PASSWORD=password, TOKEN=token)
                 result = CsHelper.execute(update_command)
                 logging.debug("Update password server result ==> %s" % result)
-
-
-class CsStaticRoutes(CsDataBag):
-    
-    def process(self):
-        logging.debug("Processing CsStaticRoutes file ==> %s" % self.dbag)
-        for item in self.dbag:
-            if item == "id":
-                continue
-            self.__update(self.dbag[item])
-
-    def __update(self, route):
-        if route['revoke']:
-            command = "ip route del %s via %s" % (route['network'], route['gateway'])
-            result = CsHelper.execute(command)
-        else:
-            command = "ip route show | grep %s | awk '{print $1, $3}'" % route['network']
-            result = CsHelper.execute(command)
-            if not result:
-                route_command = "ip route add %s via %s" % (route['network'], route['gateway'])
-                result = CsHelper.execute(route_command)
 
 
 class CsAcl(CsDataBag):
@@ -531,6 +511,8 @@ class CsSite2SiteVpn(CsDataBag):
         file.addeq(" pfs=%s" % CsHelper.bool_to_yn(obj['dpd']))
         file.addeq(" keyingtries=2")
         file.addeq(" auto=start")
+        if 'encap' not in obj:
+            obj['encap']=False
         file.addeq(" forceencaps=%s" % CsHelper.bool_to_yn(obj['encap']))
         if obj['dpd']:
             file.addeq("  dpddelay=30")
@@ -731,34 +713,34 @@ class CsForwardingRules(CsDataBag):
 
     #return the VR guest interface ip
     def getGuestIp(self):
-        ipr = []
+        interfaces = []
         ipAddr = None
-        for ip in self.config.address().get_ips():
-            if ip.is_guest():
-                ipr.append(ip)
-            if len(ipr) > 0:
-                ipAddr = sorted(ipr)[-1]
+        for interface in self.config.address().get_interfaces():
+            if interface.is_guest():
+                interfaces.append(interface)
+            if len(interfaces) > 0:
+                ipAddr = sorted(interfaces)[-1]
             if ipAddr:
                 return ipAddr.get_ip()
 
         return None
 
     def getDeviceByIp(self, ipa):
-        for ip in self.config.address().get_ips():
-            if ip.ip_in_subnet(ipa):
-                return ip.get_device()
+        for interface in self.config.address().get_interfaces():
+            if interface.ip_in_subnet(ipa):
+                return interface.get_device()
         return None
 
     def getNetworkByIp(self, ipa):
-        for ip in self.config.address().get_ips():
-            if ip.ip_in_subnet(ipa):
-                return ip.get_network()
+        for interface in self.config.address().get_interfaces():
+            if interface.ip_in_subnet(ipa):
+                return interface.get_network()
         return None
 
     def getGatewayByIp(self, ipa):
-        for ip in self.config.address().get_ips():
-            if ip.ip_in_subnet(ipa):
-                return ip.get_gateway()
+        for interface in self.config.address().get_interfaces():
+            if interface.ip_in_subnet(ipa):
+                return interface.get_gateway()
         return None
 
     def portsToString(self, ports, delimiter):
@@ -775,41 +757,46 @@ class CsForwardingRules(CsDataBag):
             self.forward_vr(rule)
 
     def forward_vr(self, rule):
+        #prefetch iptables variables
+        public_fwinterface = self.getDeviceByIp(rule['public_ip'])
+        internal_fwinterface = self.getDeviceByIp(rule['internal_ip'])
+        public_fwports = self.portsToString(rule['public_ports'], ':')
+        internal_fwports = self.portsToString(rule['internal_ports'], '-')
         fw1 = "-A PREROUTING -d %s/32 -i %s -p %s -m %s --dport %s -j DNAT --to-destination %s:%s" % \
               (
                 rule['public_ip'],
-                self.getDeviceByIp(rule['public_ip']),
+                public_fwinterface,
                 rule['protocol'],
                 rule['protocol'],
-                self.portsToString(rule['public_ports'], ':'),
+                public_fwports,
                 rule['internal_ip'],
-                self.portsToString(rule['internal_ports'], '-')
+                internal_fwports
               )
         fw2 = "-A PREROUTING -d %s/32 -i %s -p %s -m %s --dport %s -j DNAT --to-destination %s:%s" % \
               (
                 rule['public_ip'],
-                self.getDeviceByIp(rule['internal_ip']),
+                internal_fwinterface,
                 rule['protocol'],
                 rule['protocol'],
-                self.portsToString(rule['public_ports'], ':'),
+                public_fwports,
                 rule['internal_ip'],
-                self.portsToString(rule['internal_ports'], '-')
+                internal_fwports
               )
         fw3 = "-A OUTPUT -d %s/32 -p %s -m %s --dport %s -j DNAT --to-destination %s:%s" % \
               (
                 rule['public_ip'],
                 rule['protocol'],
                 rule['protocol'],
-                self.portsToString(rule['public_ports'], ':'),
+                public_fwports,
                 rule['internal_ip'],
-                self.portsToString(rule['internal_ports'], '-')
+                internal_fwports
               )
         fw4 = "-j SNAT --to-source %s -A POSTROUTING -s %s -d %s/32 -o %s -p %s -m %s --dport %s" % \
               (
                 self.getGuestIp(),
                 self.getNetworkByIp(rule['internal_ip']),
                 rule['internal_ip'],
-                self.getDeviceByIp(rule['internal_ip']),
+                internal_fwinterface,
                 rule['protocol'],
                 rule['protocol'],
                 self.portsToString(rule['internal_ports'], ':')
@@ -817,24 +804,24 @@ class CsForwardingRules(CsDataBag):
         fw5 = "-A PREROUTING -d %s/32 -i %s -p %s -m %s --dport %s -j MARK --set-xmark %s/0xffffffff" % \
               (
                 rule['public_ip'],
-                self.getDeviceByIp(rule['public_ip']),
+                public_fwinterface,
                 rule['protocol'],
                 rule['protocol'],
-                self.portsToString(rule['public_ports'], ':'),
-                hex(int(self.getDeviceByIp(rule['public_ip'])[3:]))
+                public_fwports,
+                hex(int(public_fwinterface[3:]))
               )
         fw6 = "-A PREROUTING -d %s/32 -i %s -p %s -m %s --dport %s -m state --state NEW -j CONNMARK --save-mark --nfmask 0xffffffff --ctmask 0xffffffff" % \
               (
                 rule['public_ip'],
-                self.getDeviceByIp(rule['public_ip']),
+                public_fwinterface,
                 rule['protocol'],
                 rule['protocol'],
-                self.portsToString(rule['public_ports'], ':'),
+                public_fwports,
               )
         fw7 = "-A FORWARD -i %s -o %s -p %s -m %s --dport %s -m state --state NEW,ESTABLISHED -j ACCEPT" % \
               (
-                self.getDeviceByIp(rule['public_ip']),
-                self.getDeviceByIp(rule['internal_ip']),
+                public_fwinterface,
+                internal_fwinterface,
                 rule['protocol'],
                 rule['protocol'],
                 self.portsToString(rule['internal_ports'], ':')

@@ -72,6 +72,12 @@
     <dependency>
       <groupId>jstl</groupId>
       <artifactId>jstl</artifactId>
+      <version>${cs.jstl.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>javax.servlet.jsp.jstl</groupId>
+      <artifactId>javax.servlet.jsp.jstl-api</artifactId>
+      <version>${cs.jstl-api.version}</version>
     </dependency>
     <dependency>
       <groupId>commons-codec</groupId>

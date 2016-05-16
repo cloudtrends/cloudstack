@@ -44,7 +44,6 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeoutException;
 
-import javax.ejb.Local;
 import javax.naming.ConfigurationException;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
@@ -164,7 +163,6 @@ import com.xensource.xenapi.XenAPIObject;
  * before you do any changes in this code here.
  *
  */
-@Local(value = ServerResource.class)
 public abstract class CitrixResourceBase implements ServerResource, HypervisorResource, VirtualRouterDeployer {
 
     public enum SRType {
@@ -185,6 +183,8 @@ public abstract class CitrixResourceBase implements ServerResource, HypervisorRe
             return _str;
         }
     }
+
+    private final static int BASE_TO_CONVERT_BYTES_INTO_KILOBYTES = 1024;
 
     protected static final XenServerConnectionPool ConnPool = XenServerConnectionPool.getInstance();
     // static min values for guests on xenserver
@@ -1232,7 +1232,7 @@ public abstract class CitrixResourceBase implements ServerResource, HypervisorRe
     }
 
     public VM createVmFromTemplate(final Connection conn, final VirtualMachineTO vmSpec, final Host host) throws XenAPIException, XmlRpcException {
-        final String guestOsTypeName = getGuestOsType(vmSpec.getOs(), vmSpec.getPlatformEmulator(), vmSpec.getBootloader() == BootloaderType.CD);
+        final String guestOsTypeName = getGuestOsType(vmSpec.getPlatformEmulator());
         final Set<VM> templates = VM.getByNameLabel(conn, guestOsTypeName);
         if (templates == null || templates.isEmpty()) {
             throw new CloudRuntimeException("Cannot find template " + guestOsTypeName + " on XenServer host");
@@ -1337,7 +1337,7 @@ public abstract class CitrixResourceBase implements ServerResource, HypervisorRe
                         final TemplateObjectTO iso = (TemplateObjectTO) disk.getData();
                         final String osType = iso.getGuestOsType();
                         if (osType != null) {
-                            final String isoGuestOsName = getGuestOsType(osType, vmSpec.getPlatformEmulator(), vmSpec.getBootloader() == BootloaderType.CD);
+                            final String isoGuestOsName = getGuestOsType(vmSpec.getPlatformEmulator());
                             if (!isoGuestOsName.equals(guestOsTypeName)) {
                                 vmSpec.setBootloader(BootloaderType.PyGrub);
                             }
@@ -2019,8 +2019,8 @@ public abstract class CitrixResourceBase implements ServerResource, HypervisorRe
         return null;
     }
 
-    protected String getGuestOsType(final String stdType, String platformEmulator, final boolean bootFromCD) {
-        if (platformEmulator == null) {
+    protected String getGuestOsType(String platformEmulator) {
+        if (org.apache.commons.lang.StringUtils.isBlank(platformEmulator)) {
             s_logger.debug("no guest OS type, start it as HVM guest");
             platformEmulator = "Other install media";
         }
@@ -3278,7 +3278,7 @@ public abstract class CitrixResourceBase implements ServerResource, HypervisorRe
         final HashMap<String, VmStatsEntry> vmResponseMap = new HashMap<String, VmStatsEntry>();
 
         for (final String vmUUID : vmUUIDs) {
-            vmResponseMap.put(vmUUID, new VmStatsEntry(0, 0, 0, 0, "vm"));
+            vmResponseMap.put(vmUUID, new VmStatsEntry(0,0,0,0, 0, 0, 0, "vm"));
         }
 
         final Object[] rrdData = getRRDData(conn, 2); // call rrddata with 2 for
@@ -3325,14 +3325,21 @@ public abstract class CitrixResourceBase implements ServerResource, HypervisorRe
                     vmStatsAnswer.setNumCPUs(vmStatsAnswer.getNumCPUs() + 1);
                     vmStatsAnswer.setCPUUtilization(vmStatsAnswer.getCPUUtilization() + getDataAverage(dataNode, col, numRows));
                 } else if (param.matches("vif_\\d*_rx")) {
-                    vmStatsAnswer.setNetworkReadKBs(vmStatsAnswer.getNetworkReadKBs() + getDataAverage(dataNode, col, numRows) / 1000);
+                    vmStatsAnswer.setNetworkReadKBs(vmStatsAnswer.getNetworkReadKBs() + getDataAverage(dataNode, col, numRows) / BASE_TO_CONVERT_BYTES_INTO_KILOBYTES);
                 } else if (param.matches("vif_\\d*_tx")) {
-                    vmStatsAnswer.setNetworkWriteKBs(vmStatsAnswer.getNetworkWriteKBs() + getDataAverage(dataNode, col, numRows) / 1000);
+                    vmStatsAnswer.setNetworkWriteKBs(vmStatsAnswer.getNetworkWriteKBs() + getDataAverage(dataNode, col, numRows) / BASE_TO_CONVERT_BYTES_INTO_KILOBYTES);
                 } else if (param.matches("vbd_.*_read")) {
-                    vmStatsAnswer.setDiskReadKBs(vmStatsAnswer.getDiskReadKBs() + getDataAverage(dataNode, col, numRows) / 1000);
+                    vmStatsAnswer.setDiskReadKBs(vmStatsAnswer.getDiskReadKBs() + getDataAverage(dataNode, col, numRows) / BASE_TO_CONVERT_BYTES_INTO_KILOBYTES);
                 } else if (param.matches("vbd_.*_write")) {
-                    vmStatsAnswer.setDiskWriteKBs(vmStatsAnswer.getDiskWriteKBs() + getDataAverage(dataNode, col, numRows) / 1000);
+                    vmStatsAnswer.setDiskWriteKBs(vmStatsAnswer.getDiskWriteKBs() + getDataAverage(dataNode, col, numRows) / BASE_TO_CONVERT_BYTES_INTO_KILOBYTES);
+                } else if (param.contains("memory_internal_free")) {
+                    vmStatsAnswer.setIntFreeMemoryKBs(vmStatsAnswer.getIntFreeMemoryKBs() + getDataAverage(dataNode, col, numRows) / BASE_TO_CONVERT_BYTES_INTO_KILOBYTES);
+                } else if (param.contains("memory_target")) {
+                    vmStatsAnswer.setTargetMemoryKBs(vmStatsAnswer.getTargetMemoryKBs() + getDataAverage(dataNode, col, numRows) / BASE_TO_CONVERT_BYTES_INTO_KILOBYTES);
+                } else if (param.contains("memory")) {
+                    vmStatsAnswer.setMemoryKBs(vmStatsAnswer.getMemoryKBs() + getDataAverage(dataNode, col, numRows) / BASE_TO_CONVERT_BYTES_INTO_KILOBYTES);
                 }
+
             }
         }
 
@@ -3348,6 +3355,7 @@ public abstract class CitrixResourceBase implements ServerResource, HypervisorRe
                 s_logger.debug("Vm cpu utilization " + vmStatsAnswer.getCPUUtilization());
             }
         }
+
         return vmResponseMap;
     }
 

@@ -76,6 +76,7 @@ import com.cloud.configuration.ConfigurationManager;
 import com.cloud.dc.ClusterDetailsDao;
 import com.cloud.dc.ClusterDetailsVO;
 import com.cloud.dc.ClusterVO;
+import com.cloud.dc.DataCenter;
 import com.cloud.dc.DataCenter.NetworkType;
 import com.cloud.dc.DataCenterIpAddressVO;
 import com.cloud.dc.DataCenterVO;
@@ -771,6 +772,9 @@ public class ResourceManagerImpl extends ManagerBase implements ResourceManager,
                                     _hostTagsDao.persist(host.getId(), hostTags);
                                 }
                                 hosts.add(host);
+
+                                _agentMgr.notifyMonitorsOfNewlyAddedHost(host.getId());
+
                                 return hosts;
                             }
                         }
@@ -843,10 +847,13 @@ public class ResourceManagerImpl extends ManagerBase implements ResourceManager,
             return true;
         }
 
+        long clusterId = host.getClusterId();
+
+        _agentMgr.notifyMonitorsOfHostAboutToBeRemoved(host.getId());
+
         Transaction.execute(new TransactionCallbackNoReturn() {
             @Override
             public void doInTransactionWithoutResult(final TransactionStatus status) {
-
                 _dcDao.releasePrivateIpAddress(host.getPrivateIpAddress(), host.getDataCenterId(), null);
                 _agentMgr.disconnectWithoutInvestigation(hostId, Status.Event.Remove);
 
@@ -919,6 +926,8 @@ public class ResourceManagerImpl extends ManagerBase implements ResourceManager,
                 }
             }
         });
+
+        _agentMgr.notifyMonitorsOfRemovedHost(host.getId(), clusterId);
 
         return true;
     }
@@ -1350,6 +1359,11 @@ public class ResourceManagerImpl extends ManagerBase implements ResourceManager,
     }
 
     @Override
+    public DataCenter getZone(Long zoneId) {
+        return _dcDao.findById(zoneId);
+    }
+
+    @Override
     public boolean configure(final String name, final Map<String, Object> params) throws ConfigurationException {
         _defaultSystemVMHypervisor = HypervisorType.getType(_configDao.getValue(Config.SystemVMDefaultHypervisor.toString()));
         _gson = GsonHelper.getGson();
@@ -1570,17 +1584,35 @@ public class ResourceManagerImpl extends ManagerBase implements ResourceManager,
         return true;
     }
 
+    private HostVO getNewHost(StartupCommand[] startupCommands) {
+        StartupCommand startupCommand = startupCommands[0];
+
+        HostVO host = findHostByGuid(startupCommand.getGuid());
+
+        if (host != null) {
+            return host;
+        }
+
+        host = findHostByGuid(startupCommand.getGuidWithoutResource());
+
+        if (host != null) {
+            return host;
+        }
+
+        return null;
+    }
+
     protected HostVO createHostVO(final StartupCommand[] cmds, final ServerResource resource, final Map<String, String> details, List<String> hostTags,
             final ResourceStateAdapter.Event stateEvent) {
-        final StartupCommand startup = cmds[0];
-        HostVO host = findHostByGuid(startup.getGuid());
-        boolean isNew = false;
-        if (host == null) {
-            host = findHostByGuid(startup.getGuidWithoutResource());
-        }
+        boolean newHost = false;
+        StartupCommand startup = cmds[0];
+
+        HostVO host = getNewHost(cmds);
+
         if (host == null) {
             host = new HostVO(startup.getGuid());
-            isNew = true;
+
+            newHost = true;
         }
 
         String dataCenter = startup.getDataCenter();
@@ -1695,7 +1727,7 @@ public class ResourceManagerImpl extends ManagerBase implements ResourceManager,
             throw new CloudRuntimeException("No resource state adapter response");
         }
 
-        if (isNew) {
+        if (newHost) {
             host = _hostDao.persist(host);
         } else {
             _hostDao.update(host.getId(), host);
@@ -1794,9 +1826,13 @@ public class ResourceManagerImpl extends ManagerBase implements ResourceManager,
                 }
             }
 
+            // find out if the host we want to connect to is new (so we can send an event)
+            boolean newHost = getNewHost(cmds) == null;
+
             host = createHostVO(cmds, resource, details, hostTags, ResourceStateAdapter.Event.CREATE_HOST_VO_FOR_DIRECT_CONNECT);
+
             if (host != null) {
-                created = _agentMgr.handleDirectConnectAgent(host, cmds, resource, forRebalance);
+                created = _agentMgr.handleDirectConnectAgent(host, cmds, resource, forRebalance, newHost);
                 /* reload myself from database */
                 host = _hostDao.findById(host.getId());
             }
@@ -1866,12 +1902,19 @@ public class ResourceManagerImpl extends ManagerBase implements ResourceManager,
             }
 
             host = null;
+            boolean newHost = false;
+
             final GlobalLock addHostLock = GlobalLock.getInternLock("AddHostLock");
+
             try {
                 if (addHostLock.lock(ACQUIRE_GLOBAL_LOCK_TIMEOUT_FOR_COOPERATION)) {
                     // to safely determine first host in cluster in multi-MS scenario
                     try {
+                        // find out if the host we want to connect to is new (so we can send an event)
+                        newHost = getNewHost(cmds) == null;
+
                         host = createHostVO(cmds, resource, details, hostTags, ResourceStateAdapter.Event.CREATE_HOST_VO_FOR_DIRECT_CONNECT);
+
                         if (host != null) {
                             // if first host in cluster no need to defer agent creation
                             deferAgentCreation = !isFirstHostInCluster(host);
@@ -1886,7 +1929,7 @@ public class ResourceManagerImpl extends ManagerBase implements ResourceManager,
 
             if (host != null) {
                 if (!deferAgentCreation) { // if first host in cluster then
-                    created = _agentMgr.handleDirectConnectAgent(host, cmds, resource, forRebalance);
+                    created = _agentMgr.handleDirectConnectAgent(host, cmds, resource, forRebalance, newHost);
                     host = _hostDao.findById(host.getId()); // reload
                 } else {
                     host = _hostDao.findById(host.getId()); // reload
@@ -2112,11 +2155,13 @@ public class ResourceManagerImpl extends ManagerBase implements ResourceManager,
 
         /* TODO: move to listener */
         _haMgr.cancelScheduledMigrations(host);
+
+        boolean vms_migrating = false;
         final List<VMInstanceVO> vms = _haMgr.findTakenMigrationWork();
         for (final VMInstanceVO vm : vms) {
-            if (vm != null && vm.getHostId() != null && vm.getHostId() == hostId) {
-                s_logger.info("Unable to cancel migration because the vm is being migrated: " + vm);
-                return false;
+            if (vm.getHostId() != null && vm.getHostId() == hostId) {
+                s_logger.warn("Unable to cancel migration because the vm is being migrated: " + vm + ", hostId = " + hostId);
+                vms_migrating = true;
             }
         }
 
@@ -2125,7 +2170,7 @@ public class ResourceManagerImpl extends ManagerBase implements ResourceManager,
             _agentMgr.pullAgentOutMaintenance(hostId);
 
             // for kvm, need to log into kvm host, restart cloudstack-agent
-            if (host.getHypervisorType() == HypervisorType.KVM || host.getHypervisorType() == HypervisorType.LXC) {
+            if ((host.getHypervisorType() == HypervisorType.KVM && !vms_migrating) || host.getHypervisorType() == HypervisorType.LXC) {
 
                 final boolean sshToAgent = Boolean.parseBoolean(_configDao.getValue(Config.KvmSshToAgentEnabled.key()));
                 if (!sshToAgent) {
